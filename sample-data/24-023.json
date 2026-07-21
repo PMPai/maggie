@@ -1,0 +1,40 @@
+{
+  "project": {
+    "internal_project_code": "24-023",
+    "project_name": "MD+微型桩+MI工程",
+    "currency": "TWD",
+    "default_tax_rate": "0.05"
+  },
+  "contract": {
+    "external_contract_no": "FS11308001",
+    "contract_name": "MD+微型桩+MI工程合约",
+    "currency": "TWD",
+    "tax_mode": "INCLUSIVE",
+    "tax_rate": "0.05",
+    "rounding_policy": "ROUND_HALF_UP"
+  },
+  "versions": [
+    {
+      "version_no": 1,
+      "version_type": "SIGNED_CONTRACT",
+      "status": "APPROVED",
+      "amount_ex_tax": "37123809.52",
+      "tax_amount": "1856190.48",
+      "amount_inc_tax": "38980000"
+    }
+  ],
+  "items_v1": [
+    {"line_no": "1", "source_description": "MD工程组", "is_heading": true, "is_billable": false, "calculation_method": "HEADING"},
+    {"line_no": "1.1", "source_description": "MD钻孔", "unit": "孔", "contract_quantity": "50", "unit_price": "50000", "line_amount": "2500000", "calculation_method": "QUANTITY", "parent_line_no": "1"},
+    {"line_no": "1.2", "source_description": "MD灌浆", "unit": "m", "contract_quantity": "500", "unit_price": "2000", "line_amount": "1000000", "calculation_method": "QUANTITY", "parent_line_no": "1"},
+    {"line_no": "2", "source_description": "微型桩工程组", "is_heading": true, "is_billable": false, "calculation_method": "HEADING"},
+    {"line_no": "2.1", "source_description": "微型桩施工", "unit": "m", "contract_quantity": "800", "unit_price": "8000", "line_amount": "6400000", "calculation_method": "QUANTITY", "parent_line_no": "2"},
+    {"line_no": "3", "source_description": "MI工程组", "is_heading": true, "is_billable": false, "calculation_method": "HEADING"},
+    {"line_no": "3.1", "source_description": "MI监测设备安装", "unit": "处", "contract_quantity": "10", "unit_price": "120000", "line_amount": "1200000", "calculation_method": "QUANTITY", "parent_line_no": "3"},
+    {"line_no": "4", "source_description": "其他工程", "is_heading": true, "is_billable": false, "calculation_method": "HEADING"},
+    {"line_no": "4.1", "source_description": "临时设施", "unit": "式", "contract_quantity": "1", "unit_price": "500000", "line_amount": "500000", "calculation_method": "LUMP_SUM", "parent_line_no": "4"}
+  ],
+  "payment_rules": [
+    {"rule_type": "RETENTION_HOLD", "rule_name": "保留款20%", "rate": "0.20", "calculation_base": "CURRENT_PERIOD"}
+  ]
+}

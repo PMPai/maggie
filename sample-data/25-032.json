@@ -1,0 +1,73 @@
+{
+  "project": {
+    "internal_project_code": "25-032",
+    "project_name": "污水工作井地盘改良工程",
+    "description": "CQ880A污水工作井地改工程",
+    "currency": "TWD",
+    "default_tax_rate": "0.05"
+  },
+  "contract": {
+    "external_contract_no": "CQ880A-11501",
+    "contract_name": "污水工作井地盘改良工程合约",
+    "currency": "TWD",
+    "tax_mode": "EXCLUSIVE",
+    "tax_rate": "0.05",
+    "rounding_policy": "ROUND_HALF_UP"
+  },
+  "versions": [
+    {
+      "version_no": 1,
+      "version_type": "SIGNED_CONTRACT",
+      "status": "APPROVED",
+      "amount_ex_tax": "10476190",
+      "tax_amount": "523810",
+      "amount_inc_tax": "11000000",
+      "change_reason": "原始签约报价"
+    },
+    {
+      "version_no": 2,
+      "version_type": "INTERNAL_ADJUSTMENT",
+      "status": "UNDER_REVIEW",
+      "amount_ex_tax": "10515523",
+      "tax_amount": "525776.15",
+      "amount_inc_tax": "11041299.15",
+      "change_reason": "后续请款基准差异，待确认调整（差额39,333）"
+    }
+  ],
+  "items_v1": [
+    {"line_no": "1", "source_description": "地盘改良工作井-第一项", "unit": "式", "contract_quantity": "1", "unit_price": "2494000", "line_amount": "2494000", "calculation_method": "LUMP_SUM"},
+    {"line_no": "2", "source_description": "地盘改良工作井-第二项", "unit": "式", "contract_quantity": "1", "unit_price": "661200", "line_amount": "661200", "calculation_method": "LUMP_SUM"},
+    {"line_no": "3", "source_description": "地盘改良工作井-第三项", "unit": "式", "contract_quantity": "1", "unit_price": "5980000", "line_amount": "5980000", "calculation_method": "LUMP_SUM"},
+    {"line_no": "4", "source_description": "地盘改良工作井-第四项", "unit": "式", "contract_quantity": "1", "unit_price": "455000", "line_amount": "455000", "calculation_method": "LUMP_SUM"},
+    {"line_no": "5", "source_description": "地盘改良工作井-第五项", "unit": "式", "contract_quantity": "1", "unit_price": "850000", "line_amount": "850000", "calculation_method": "LUMP_SUM"},
+    {"line_no": "6", "source_description": "地盘改良工作井-第六项", "unit": "式", "contract_quantity": "1", "unit_price": "35990", "line_amount": "35990", "calculation_method": "LUMP_SUM"}
+  ],
+  "payment_rules": [
+    {"rule_type": "RETENTION_HOLD", "rule_name": "保留款10%", "rate": "0.10", "calculation_base": "CURRENT_PERIOD"},
+    {"rule_type": "RETENTION_RELEASE", "rule_name": "试验完成释放10%保留款", "rate": "1.0", "calculation_base": "CUMULATIVE", "condition_code": "TRIAL_PASS"}
+  ],
+  "applications": [
+    {
+      "application_no": "25-032-P1",
+      "period_no": 1,
+      "period_start": "2026-01-01",
+      "period_end": "2026-03-31",
+      "application_date": "2026-04-15",
+      "status": "POSTED",
+      "lines": []
+    },
+    {
+      "application_no": "25-032-P2",
+      "period_no": 2,
+      "period_start": "2026-04-01",
+      "period_end": "2026-04-28",
+      "application_date": "2026-04-28",
+      "status": "POSTED",
+      "gross_completed_amount": "401792",
+      "retention_held_amount": "74600",
+      "taxable_amount": "327192",
+      "tax_amount": "16360",
+      "invoice_amount": "343552"
+    }
+  ]
+}
