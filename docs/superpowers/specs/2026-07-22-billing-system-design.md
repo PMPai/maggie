@@ -394,7 +394,7 @@ Known-facts seed JSON. No reference files present; per spec §RESOURCE IV we bui
 
 **25-032:**
 - Project, contract CQ880A-11501.
-- **Two contract_versions:** v1 = 10,476,190 ex-tax / 523,810 tax / 11,000,000 inc; v2 = 10,515,523 ex-tax (flagged UNCONFIRMED_ADJUSTMENT, not auto-variation) with diff 39,333 explicitly shown.
+- **Two contract_versions:** v1 = 10,476,190 ex-tax / 523,810 tax / 11,000,000 inc (version_type=QUOTATION or SIGNED_CONTRACT, status=APPROVED); v2 = 10,515,523 ex-tax (version_type=INTERNAL_ADJUSTMENT, status=UNDER_REVIEW — not auto-variation; represents the later billing basis that lacks a signed variation) with diff 39,333 explicitly shown. Per RESTRAINT §37, the version difference is NOT automatically promoted to an APPROVED_VARIATION; it stays UNDER_REVIEW until a human supplies business justification or rejects it.
 - 6 contract_items per version, line amounts: 2,494,000 / 661,200 / 5,980,000 / 455,000 / 850,000 / 35,990 (v1).
 - payment_rules: 10% retention, milestone-based release.
 - Period 1 + period 2 applications (period 2: 401,792 / 74,600 retention / 327,192 taxable / 16,360 tax / 343,552 inc).
