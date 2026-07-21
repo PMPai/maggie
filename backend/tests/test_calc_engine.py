@@ -3,7 +3,7 @@ from decimal import Decimal
 from app.services.calc_engine import (
     ItemInput, LineInput, RuleInput, calc_line_current, calc_application,
     check_quantity_limit, OverclaimError, CalculationMethod, TaxMode,
-    RoundingPolicy, ValidationIssueCode
+    RoundingPolicy, ValidationIssueCode, LineResult, ApplicationTotals
 )
 
 

@@ -222,10 +222,10 @@ def calc_application(
     taxable = _round(taxable, rounding_policy, Decimal("0.01"))
 
     if tax_mode == TaxMode.INCLUSIVE:
-        tax = _round(taxable - (taxable / (Decimal("1") + tax_rate)), rounding_policy, Decimal("0.01"))
+        tax = _round(taxable - (taxable / (Decimal("1") + tax_rate)), rounding_policy, rounding_granularity if rounding_granularity >= Decimal("1") else Decimal("0.01"))
         invoice = taxable
     else:
-        tax = _round(taxable * tax_rate, rounding_policy, Decimal("0.01"))
+        tax = _round(taxable * tax_rate, rounding_policy, rounding_granularity if rounding_granularity >= Decimal("1") else Decimal("0.01"))
         invoice = taxable + tax
 
     invoice = _round(invoice, rounding_policy, rounding_granularity)
