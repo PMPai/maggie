@@ -1,0 +1,233 @@
+# 业务规则 (Business Rules)
+
+## 业务流程总览
+
+```mermaid
+flowchart TD
+    A["建立项目"] --> B["上传合同原件"]
+    B --> C["抽取或人工输入合同资料"]
+    C --> D["核对合同项目、单价和付款规则"]
+    D --> E{"审核通过？"}
+    E -- "否" --> C
+    E -- "是" --> F["批准合同版本"]
+    F --> G["建立标准项目映射"]
+    G --> H{"已有批准规则？"}
+    H -- "是" --> I["采用既有映射"]
+    H -- "否" --> J["规则、语义及LLM推荐"]
+    J --> K["人工转换审批"]
+    K --> I
+    I --> L["建立Master Budget"]
+    L --> M["新建本期请款"]
+    M --> N["选择合同项目"]
+    N --> O["输入数量、比例或里程碑"]
+    O --> P["计算金额、税额、保留款和余额"]
+    P --> Q{"存在异常？"}
+    Q -- "是" --> R["变更或异常审批"]
+    R --> P
+    Q -- "否" --> S["项目负责人审核"]
+    S --> T["财务复核"]
+    T --> U["锁定并过账"]
+    U --> V["生成PDF及Excel请款单"]
+    V --> W["登记发票"]
+    W --> X["登记收款"]
+    X --> Y["核销差异"]
+```
+
+---
+
+## 1. 合同版本管理 (Contract Version Management)
+
+### 核心原则：版本不可覆盖
+
+- 每个合同可有多个版本（`contract_versions`），每个版本有独立的 `version_no`。
+- `contracts.active_version_id` 指向当前生效版本，**仅通过"批准合同版本"工作流更新**，不可直接编辑。
+- 历史版本始终可查，状态流转：`DRAFT → UNDER_REVIEW → APPROVED → SUPERSEDED`（或 `REJECTED`）。
+
+### 版本类型 (`version_type`)
+
+| 类型 | 说明 |
+|---|---|
+| `QUOTATION` | 报价版 |
+| `SIGNED_CONTRACT` | 签约合同 |
+| `PROVISIONAL` | 暂定版 |
+| `INTERNAL_ADJUSTMENT` | 内部调整（需人工确认是否升级为变更） |
+| `APPROVED_VARIATION` | 已批准变更 |
+
+### 关键约束
+
+- **版本差异不自动升级为变更**：当两个版本金额不同时，差异（如 39,333）显式展示，但**不自动**创建 `APPROVED_VARIATION`。必须由人工提供业务理由并审批后才能升级。
+- `UNIQUE (contract_id, version_no)` — 同一合同内版本号唯一。
+- 请款行冻结 `contract_version_id`——后续合同修订**不会**重算历史行。描述、单位、单价快照同样冻结。
+
+---
+
+## 2. 付款规则 (Payment Rules)
+
+### 核心原则：可配置，不硬编码
+
+付款规则存储在 `payment_rules` 表中，**绝不硬编码** 80/10/10 或 20% 等比例。所有保留款、扣款、里程碑释放均通过规则配置驱动。
+
+### 规则类型 (`rule_type`)
+
+| 类型 | 说明 |
+|---|---|
+| `PROGRESS_PAYMENT` | 进度款 |
+| `RETENTION_HOLD` | 保留款扣留 |
+| `RETENTION_RELEASE` | 保留款释放 |
+| `MILESTONE_PAYMENT` | 里程碑付款 |
+| `ADVANCE_PAYMENT` | 预付款 |
+| `DEDUCTION` | 扣款 |
+| `TAX` | 税额 |
+| `ROUNDING` | 舍入 |
+| `PENALTY` | 罚款 |
+
+### 规则字段
+
+- `calculation_base` — 计算基数（本期金额 / 累计金额 / 合同总额）
+- `release_sequence` — 释放顺序（如里程碑释放顺序）
+- 生效窗口 — 开始/结束期间
+
+### 示例：25-032 项目
+
+- 10% 保留款扣留（基数 = 本期完成金额）
+- 里程碑触发释放（按合同约定里程碑节点）
+
+---
+
+## 3. 计算方法 (Calculation Methods)
+
+合同明细项的 `calculation_method` 决定金额计算方式：
+
+| 方法 | 公式 | 说明 |
+|---|---|---|
+| `QUANTITY` | `批准数量 × 单价快照` | 最常用，用户编辑数量不编辑金额 |
+| `LUMP_SUM` | 比例 × 行金额 或 直接金额 | 直接金额需附原因；超阈值需审批 |
+| `MILESTONE` | 关联里程碑 APPROVED 时释放全额或配置比例 | 未批准则金额为 0 |
+| `PERCENTAGE` | 百分比 × 基数 | 按完成比例计算 |
+| `ALLOWANCE` | 暂列金 | 按约定释放 |
+| `ADJUSTMENT` | 调整项 | 手动调整，需审批 |
+| `HEADING` | 标题行 | 不可请款，仅分组 |
+
+### 可用量计算
+
+```
+可用量 = 合同数量 + Σ(批准变更增量) − Σ(批准扣减量)
+剩余量 = 可用量 − 累计已批准数量
+```
+
+- 当 `current_claimed_qty + prev > available` 时，引擎抛出 `OverclaimError`，**绝不静默截断**。
+- 保留款、税额基于 `payment_rules` 配置计算，非硬编码。
+
+---
+
+## 4. 保留款台账 (Retention Ledger)
+
+### 核心原则：台账制，无可变余额列
+
+保留款通过 `retention_entries` 台账分录管理，余额 = `SUM(entries)`，**不存在可变的余额列**。
+
+### 分录类型
+
+| 类型 | 方向 | 说明 |
+|---|---|---|
+| `HOLD` | 扣留 | 本期扣留的保留款 |
+| `RELEASE` | 释放 | 释放保留款至请款 |
+| `ADJUSTMENT` | 调整 | 余额调整（需审批） |
+| `REVERSAL` | 冲销 | 冲销历史分录 |
+
+### 释放规则
+
+- 释放通过台账分录（RELEASE/REVERSAL）实现。
+- `retention_released_amount` = `Σ(本期释放分录)`，从台账聚合计算，不读取可变余额列。
+- 里程碑释放按 `payment_rules.release_sequence` 顺序执行。
+
+### 25-032 示例
+
+| 期 | 本期完成 | 保留款扣留 | 释放 | 含税发票 |
+|---|---|---|---|---|
+| 2 | 401,792 | 74,600 | 0 | 343,552 |
+| 3 (Phase 2) | 0 | 0 | 980,496 | 1,029,521 |
+
+---
+
+## 5. 过账幂等 (Idempotent Posting)
+
+### 核心原则：同一操作不重复写入
+
+过账操作 `post(payment_application_id, action_id)`：
+
+- 若 `(app_id, action_id)` 已在台账中，**返回上次结果，不重复写入**。
+- 幂等键 `action_id` 由调用方提供（UUID），确保网络重试不会导致重复过账。
+
+### 过账冻结
+
+- 过账后状态变为 `POSTED`，**所有行不可编辑**（API 返回 409）。
+- 更正需创建冲销分录 + 新修订（`supersedes_application_id` 指向原请款），**原请款永不修改**。
+- 过账时冻结 `contract_version_id`、单价快照、描述快照。
+
+### 状态流转
+
+```
+DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
+                                                                                    ↓
+                                                                              GENERATED → SENT
+```
+
+拒绝路径：任何审批步骤 `REJECTED` → 资源冻结，需新建修订。
+
+---
+
+## 6. 验证门禁 (Validation Gate)
+
+验证在**提交 AND 过账**时运行，任一 `severity=ERROR` 的验证问题将阻止过账：
+
+| 检查项 | 失败异常 |
+|---|---|
+| 合同版本状态 = APPROVED | — |
+| 明细 `is_billable` 且非 `is_heading` | — |
+| `current_claimed_qty >= 0` | — |
+| 累计数量 ≤ 可用量 | `OverclaimException` |
+| 单价快照 = 合同版本单价 | `StalePriceException` |
+| 上期累计 = 上次过账累计 | `PriorMismatchException` |
+| 保留款规则可解析 | `MissingRetentionException` |
+| 税额重算 = 存储税额（容差 0.01） | — |
+| 所有扣款关联 APPROVED 审批步骤 | — |
+| 里程碑事件满足里程碑行 | — |
+| 必需文档已上传 | — |
+| 无未批准变更请款 | — |
+| 无重复 (contract_id, application_no, period_no) | — |
+
+每个失败返回结构化 `ValidationIssue{code, field, message, severity}`。
+
+---
+
+## 7. 请款单生成 (Document Generation)
+
+- **PDF**：Playwright Chromium 渲染 A4 可打印文档。
+- **Excel**：openpyxl 生成 .xlsx。
+- **数据一致性**：PDF 合计必须 = 数据库合计（测试 #19 验证）。
+- **模板**：客户级模板，含版本 + 生效日期。
+- **不可覆盖**：已发送版本不可覆盖；重新生成 = 新版本。
+- **无自动签章**：盖章/电子签/发送为独立受控功能（默认关闭）。
+- **数字格式**：数字列右对齐 + 千分位分隔；换页重复表头；避免不合理行拆分。
+
+---
+
+## 8. 审批工作流 (Approval Workflow)
+
+- `approval_workflows` 定义模板（如"请款 > 1,000,000 → PM + 造价 + 财务"）。
+- `approval_steps` 为有序角色门控步骤列表。
+- `approvals` 记录每位审批人决策。
+- 资源**仅在所有必需步骤 APPROVED 后**视为已批准。
+- **幂等**：重复审批返回已有记录。
+- **拒绝冻结**：REJECTED 后资源冻结，需新建修订（不可解冻）。
+- 工作流可按金额、项目、合同或异常类型配置。
+
+---
+
+## 9. 数据隔离 (Data Isolation)
+
+- **组织级**：所有业务表含 `organization_id`，服务层强制过滤。
+- **项目级**：用户仅能访问所属 `project_members` 项目（`SYSTEM_ADMIN` 例外）。
+- **URL 不可绕过**：权限检查在服务层执行，非前端路由。
+- 25-032 数据永不进入 24-023（测试 #18 验证）。
