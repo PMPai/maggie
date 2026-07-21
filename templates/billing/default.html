@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+@page { size: A4; margin: 15mm 12mm; }
+body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 10pt; color: #1a1a1a; }
+.header { text-align: center; margin-bottom: 16px; }
+.header h1 { font-size: 16pt; margin: 0 0 4px 0; }
+.header .subtitle { font-size: 10pt; color: #555; }
+.info-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+.info-table td { padding: 3px 8px; font-size: 9pt; border: none; }
+.info-table .label { font-weight: bold; width: 80px; }
+table.billing { width: 100%; border-collapse: collapse; }
+table.billing th { background: #f0f0f0; border: 1px solid #ccc; padding: 4px 6px; font-size: 8pt; text-align: center; }
+table.billing td { border: 1px solid #ccc; padding: 4px 6px; font-size: 8pt; }
+.num { text-align: right; font-family: "Courier New", monospace; }
+.totals { margin-top: 12px; }
+.totals table { width: 300px; margin-left: auto; border-collapse: collapse; }
+.totals td { padding: 3px 8px; border: 1px solid #ccc; font-size: 9pt; }
+.totals .num { text-align: right; }
+.totals .label { font-weight: bold; }
+tr { page-break-inside: avoid; }
+thead { display: table-header-group; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <div class="subtitle">工程计价请款单</div>
+</div>
+<table class="info-table">
+  <tr><td class="label">业主：</td><td>{{ owner_name }}</td><td class="label">工程名称：</td><td>{{ project_name }}</td></tr>
+  <tr><td class="label">合同编号：</td><td>{{ contract_no }}</td><td class="label">请款日期：</td><td>{{ application_date }}</td></tr>
+  <tr><td class="label">请款期数：</td><td>第 {{ period_no }} 期</td><td class="label">合同总价：</td><td>{{ contract_total }}</td></tr>
+</table>
+<table class="billing">
+  <thead>
+    <tr>
+      <th>项次</th>
+      <th>项目名称</th>
+      <th>单位</th>
+      <th>合同数量</th>
+      <th>单价</th>
+      <th>复价</th>
+      <th>前期累计数量</th>
+      <th>本期数量</th>
+      <th>累计数量</th>
+      <th>施工金额</th>
+      <th>保留款</th>
+      <th>计价金额</th>
+      <th>备注</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td>{{ line.line_no }}</td>
+      <td>{{ line.description }}</td>
+      <td>{{ line.unit }}</td>
+      <td class="num">{{ line.contract_qty }}</td>
+      <td class="num">{{ line.unit_price }}</td>
+      <td class="num">{{ line.line_amount }}</td>
+      <td class="num">{{ line.prev_qty }}</td>
+      <td class="num">{{ line.current_qty }}</td>
+      <td class="num">{{ line.cumulative_qty }}</td>
+      <td class="num">{{ line.work_amount }}</td>
+      <td class="num">{{ line.retention }}</td>
+      <td class="num">{{ line.billed_amount }}</td>
+      <td>{{ line.remarks }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="totals">
+  <table>
+    <tr><td class="label">本期施工金额</td><td class="num">{{ totals.gross }}</td></tr>
+    <tr><td class="label">本期保留款</td><td class="num">{{ totals.retention_held }}</td></tr>
+    <tr><td class="label">本期释放保留款</td><td class="num">{{ totals.retention_released }}</td></tr>
+    <tr><td class="label">本期扣款</td><td class="num">{{ totals.deduction }}</td></tr>
+    <tr><td class="label">未税计价金额</td><td class="num">{{ totals.taxable }}</td></tr>
+    <tr><td class="label">税额</td><td class="num">{{ totals.tax }}</td></tr>
+    <tr><td class="label">含税发票金额</td><td class="num"><strong>{{ totals.invoice }}</strong></td></tr>
+  </table>
+</div>
+</body>
+</html>
