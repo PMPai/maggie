@@ -7,6 +7,8 @@ from app.api.companies import router as companies_router
 from app.api.projects import router as projects_router
 from app.api.contracts import router as contracts_router
 from app.api.documents import router as documents_router
+from app.api.payment_applications import router as payment_router
+from app.api.approvals import router as approvals_router
 
 settings = get_settings()
 
@@ -41,6 +43,8 @@ def create_app() -> FastAPI:
     app.include_router(projects_router)
     app.include_router(contracts_router)
     app.include_router(documents_router)
+    app.include_router(payment_router)
+    app.include_router(approvals_router)
 
     @app.get("/health")
     async def health():
