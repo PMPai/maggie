@@ -1,0 +1,234 @@
+import uuid
+from decimal import Decimal
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from app.db.session import get_db
+from app.deps import get_current_user, CurrentUser, require_project_member
+from app.models.contract import Contract, ContractVersion, ContractItem, PaymentRule, ContractVersionStatus
+from app.schemas.contract import (
+    ContractCreate, ContractResponse, ContractVersionCreate, ContractVersionResponse,
+    ContractItemCreate, ContractItemResponse, PaymentRuleCreate, PaymentRuleResponse
+)
+
+router = APIRouter(prefix="/api/contracts", tags=["contracts"])
+
+
+@router.post("", response_model=ContractResponse)
+async def create_contract(req: ContractCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    pid = uuid.UUID(req.project_id)
+    await require_project_member(pid, current, db)
+    contract = Contract(
+        organization_id=current.organization_id, project_id=pid,
+        external_contract_no=req.external_contract_no, contract_name=req.contract_name,
+        customer_company_id=uuid.UUID(req.customer_company_id) if req.customer_company_id else None,
+        contractor_company_id=uuid.UUID(req.contractor_company_id) if req.contractor_company_id else None,
+        signed_date=req.signed_date, effective_date=req.effective_date,
+        currency=req.currency, tax_mode=req.tax_mode, tax_rate=req.tax_rate,
+        rounding_policy=req.rounding_policy, rounding_granularity=req.rounding_granularity,
+        created_by=current.user.id, updated_by=current.user.id,
+    )
+    db.add(contract)
+    await db.commit()
+    await db.refresh(contract)
+    return ContractResponse(
+        id=str(contract.id), project_id=str(contract.project_id),
+        external_contract_no=contract.external_contract_no, contract_name=contract.contract_name,
+        currency=contract.currency, tax_mode=contract.tax_mode, tax_rate=contract.tax_rate,
+        original_amount_ex_tax=contract.original_amount_ex_tax, original_tax_amount=contract.original_tax_amount,
+        original_amount_inc_tax=contract.original_amount_inc_tax, status=contract.status,
+        active_version_id=str(contract.active_version_id) if contract.active_version_id else None,
+    )
+
+
+@router.get("", response_model=list[ContractResponse])
+async def list_contracts(project_id: str = Query(...), current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    pid = uuid.UUID(project_id)
+    await require_project_member(pid, current, db)
+    result = await db.execute(
+        select(Contract).where(Contract.project_id == pid, Contract.organization_id == current.organization_id, Contract.deleted_at.is_(None))
+    )
+    contracts = result.scalars().all()
+    return [ContractResponse(
+        id=str(c.id), project_id=str(c.project_id), external_contract_no=c.external_contract_no,
+        contract_name=c.contract_name, currency=c.currency, tax_mode=c.tax_mode, tax_rate=c.tax_rate,
+        original_amount_ex_tax=c.original_amount_ex_tax, original_tax_amount=c.original_tax_amount,
+        original_amount_inc_tax=c.original_amount_inc_tax, status=c.status,
+        active_version_id=str(c.active_version_id) if c.active_version_id else None,
+    ) for c in contracts]
+
+
+@router.post("/{contract_id}/versions", response_model=ContractVersionResponse)
+async def create_version(contract_id: str, req: ContractVersionCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    cid = uuid.UUID(contract_id)
+    result = await db.execute(select(Contract).where(Contract.id == cid))
+    contract = result.scalar_one_or_none()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    await require_project_member(contract.project_id, current, db)
+
+    max_version = await db.execute(select(func.max(ContractVersion.version_no)).where(ContractVersion.contract_id == cid))
+    next_no = (max_version.scalar() or 0) + 1
+
+    version = ContractVersion(
+        organization_id=current.organization_id, contract_id=cid, version_no=next_no,
+        version_type=req.version_type, effective_date=req.effective_date,
+        amount_ex_tax=req.amount_ex_tax, tax_amount=req.tax_amount, amount_inc_tax=req.amount_inc_tax,
+        change_reason=req.change_reason, created_by=current.user.id, updated_by=current.user.id,
+    )
+    db.add(version)
+    await db.commit()
+    await db.refresh(version)
+    return ContractVersionResponse(
+        id=str(version.id), contract_id=str(version.contract_id), version_no=version.version_no,
+        version_type=version.version_type, amount_ex_tax=version.amount_ex_tax,
+        tax_amount=version.tax_amount, amount_inc_tax=version.amount_inc_tax,
+        status=version.status, change_reason=version.change_reason,
+    )
+
+
+@router.get("/{contract_id}/versions", response_model=list[ContractVersionResponse])
+async def list_versions(contract_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    cid = uuid.UUID(contract_id)
+    result = await db.execute(select(Contract).where(Contract.id == cid))
+    contract = result.scalar_one_or_none()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    await require_project_member(contract.project_id, current, db)
+    result = await db.execute(
+        select(ContractVersion).where(ContractVersion.contract_id == cid).order_by(ContractVersion.version_no)
+    )
+    versions = result.scalars().all()
+    return [ContractVersionResponse(
+        id=str(v.id), contract_id=str(v.contract_id), version_no=v.version_no,
+        version_type=v.version_type, amount_ex_tax=v.amount_ex_tax, tax_amount=v.tax_amount,
+        amount_inc_tax=v.amount_inc_tax, status=v.status, change_reason=v.change_reason,
+    ) for v in versions]
+
+
+@router.post("/{contract_id}/versions/{version_id}/approve", response_model=ContractVersionResponse)
+async def approve_version(contract_id: str, version_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from datetime import datetime, timezone
+    cid = uuid.UUID(contract_id)
+    vid = uuid.UUID(version_id)
+    result = await db.execute(select(Contract).where(Contract.id == cid))
+    contract = result.scalar_one_or_none()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    await require_project_member(contract.project_id, current, db)
+
+    result = await db.execute(select(ContractVersion).where(ContractVersion.id == vid, ContractVersion.contract_id == cid))
+    version = result.scalar_one_or_none()
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+    if version.status != ContractVersionStatus.DRAFT.value and version.status != ContractVersionStatus.UNDER_REVIEW.value:
+        raise HTTPException(status_code=400, detail=f"Cannot approve version in status {version.status}")
+
+    # Supersede previous approved version
+    await db.execute(
+        select(ContractVersion).where(ContractVersion.contract_id == cid, ContractVersion.status == "APPROVED", ContractVersion.id != vid)
+    )
+    # Mark previous approved as SUPERSEDED
+    prev_result = await db.execute(
+        select(ContractVersion).where(ContractVersion.contract_id == cid, ContractVersion.status == "APPROVED", ContractVersion.id != vid)
+    )
+    for pv in prev_result.scalars().all():
+        pv.status = ContractVersionStatus.SUPERSEDED
+
+    version.status = ContractVersionStatus.APPROVED
+    version.approved_by = current.user.id
+    version.approved_at = datetime.now(timezone.utc)
+    contract.active_version_id = vid
+    contract.original_amount_ex_tax = version.amount_ex_tax
+    contract.original_tax_amount = version.tax_amount
+    contract.original_amount_inc_tax = version.amount_inc_tax
+    contract.status = "ACTIVE"
+    await db.commit()
+    await db.refresh(version)
+    return ContractVersionResponse(
+        id=str(version.id), contract_id=str(version.contract_id), version_no=version.version_no,
+        version_type=version.version_type, amount_ex_tax=version.amount_ex_tax, tax_amount=version.tax_amount,
+        amount_inc_tax=version.amount_inc_tax, status=version.status, change_reason=version.change_reason,
+    )
+
+
+@router.post("/contract-versions/{version_id}/items", response_model=ContractItemResponse)
+async def create_item(version_id: str, req: ContractItemCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    vid = uuid.UUID(version_id)
+    result = await db.execute(select(ContractVersion).where(ContractVersion.id == vid))
+    version = result.scalar_one_or_none()
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+    result = await db.execute(select(Contract).where(Contract.id == version.contract_id))
+    contract = result.scalar_one()
+    await require_project_member(contract.project_id, current, db)
+
+    item = ContractItem(
+        organization_id=current.organization_id, contract_version_id=vid,
+        parent_item_id=uuid.UUID(req.parent_item_id) if req.parent_item_id else None,
+        line_no=req.line_no, item_code=req.item_code, source_description=req.source_description,
+        normalized_description=req.normalized_description, unit=req.unit,
+        contract_quantity=req.contract_quantity, unit_price=req.unit_price, line_amount=req.line_amount,
+        calculation_method=req.calculation_method, tax_category=req.tax_category,
+        retention_applicable=req.retention_applicable, is_heading=req.is_heading, is_billable=req.is_billable,
+        sort_order=req.sort_order, created_by=current.user.id, updated_by=current.user.id,
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return ContractItemResponse(
+        id=str(item.id), contract_version_id=str(item.contract_version_id),
+        parent_item_id=str(item.parent_item_id) if item.parent_item_id else None,
+        line_no=item.line_no, item_code=item.item_code, source_description=item.source_description,
+        unit=item.unit, contract_quantity=item.contract_quantity, unit_price=item.unit_price,
+        line_amount=item.line_amount, calculation_method=item.calculation_method,
+        is_heading=item.is_heading, is_billable=item.is_billable,
+        retention_applicable=item.retention_applicable, sort_order=item.sort_order,
+    )
+
+
+@router.get("/contract-versions/{version_id}/items", response_model=list[ContractItemResponse])
+async def list_items(version_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    vid = uuid.UUID(version_id)
+    result = await db.execute(select(ContractVersion).where(ContractVersion.id == vid))
+    version = result.scalar_one_or_none()
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+    result = await db.execute(select(Contract).where(Contract.id == version.contract_id))
+    contract = result.scalar_one()
+    await require_project_member(contract.project_id, current, db)
+    result = await db.execute(
+        select(ContractItem).where(ContractItem.contract_version_id == vid).order_by(ContractItem.sort_order)
+    )
+    return [ContractItemResponse(
+        id=str(i.id), contract_version_id=str(i.contract_version_id),
+        parent_item_id=str(i.parent_item_id) if i.parent_item_id else None,
+        line_no=i.line_no, item_code=i.item_code, source_description=i.source_description,
+        unit=i.unit, contract_quantity=i.contract_quantity, unit_price=i.unit_price,
+        line_amount=i.line_amount, calculation_method=i.calculation_method,
+        is_heading=i.is_heading, is_billable=i.is_billable, retention_applicable=i.retention_applicable,
+        sort_order=i.sort_order,
+    ) for i in result.scalars().all()]
+
+
+@router.post("/contract-versions/{version_id}/payment-rules", response_model=PaymentRuleResponse)
+async def create_payment_rule(version_id: str, req: PaymentRuleCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    vid = uuid.UUID(version_id)
+    rule = PaymentRule(
+        organization_id=current.organization_id, contract_version_id=vid,
+        contract_item_id=uuid.UUID(req.contract_item_id) if req.contract_item_id else None,
+        rule_type=req.rule_type, rule_name=req.rule_name, rate=req.rate,
+        calculation_base=req.calculation_base, condition_code=req.condition_code,
+        condition_description=req.condition_description, release_sequence=req.release_sequence,
+        created_by=current.user.id, updated_by=current.user.id,
+    )
+    db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+    return PaymentRuleResponse(
+        id=str(rule.id), contract_version_id=str(rule.contract_version_id),
+        contract_item_id=str(rule.contract_item_id) if rule.contract_item_id else None,
+        rule_type=rule.rule_type, rule_name=rule.rule_name, rate=rule.rate,
+        calculation_base=rule.calculation_base, is_active=rule.is_active,
+    )
