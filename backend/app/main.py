@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
 from app.api.auth import router as auth_router
+from app.api.companies import router as companies_router
+from app.api.projects import router as projects_router
 
 settings = get_settings()
 
@@ -33,6 +35,8 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(auth_router)
+    app.include_router(companies_router)
+    app.include_router(projects_router)
 
     @app.get("/health")
     async def health():
