@@ -40,7 +40,7 @@ class Contract(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMi
     original_tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0"))
     original_amount_inc_tax: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0"))
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="DRAFT")
-    active_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("contract_versions.id"), nullable=True)
+    active_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("contract_versions.id", use_alter=True, name="fk_contracts_active_version_id"), nullable=True)
 
 
 class ContractVersionType(enum.Enum):

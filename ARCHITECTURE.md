@@ -194,11 +194,56 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 
 ---
 
+## Phase 2 新增服务 (Phase 2 Services)
+
+### 变更单服务 (`variation_service.py`)
+- `get_approved_variation_qty(contract_item_id, db)` — 查询已批准变更的累计数量增量，供计算引擎的 `check_quantity_limit` 使用。
+
+### 扣款服务 (`deduction_service.py`)
+- `get_application_deductions(app_id, db)` — 查询请款关联的已批准扣款。
+- `calc_deduction_tax(amount, tax_treatment, tax_rate)` — 按税务处理类型计算扣款税额。
+- `get_total_deduction_amount(app_id, db)` — 汇总已批准扣款金额。
+
+### 保留款台账服务 (`retention_service.py`)
+- `create_release(...)` / `create_adjustment(...)` / `create_reversal(...)` — 创建台账分录。
+- `get_balance(contract_id, db)` — 余额 = `SUM(HOLD) - SUM(RELEASE) - SUM(REVERSAL)`，无可变余额列。
+- `get_releases_for_period(contract_id, period_start, period_end, db)` — 查询本期释放金额，供计算引擎使用。
+
+### 收款服务 (`collection_service.py`)
+- `get_invoice_outstanding(invoice_id, db)` — 发票未清金额 = 含税金额 - 已分配收款。
+
+### 匹配管道 (`services/matching/`)
+- `normalize.py` — 文本标准化（全/半角、繁/简、空格、括号）。
+- `alias.py` — 精确别名查找（自动匹配）。
+- `rule.py` — 关键词规则匹配。
+- `fulltext.py` — PostgreSQL ILIKE 全文检索。
+- `vector.py` — pgvector 向量检索（可选）。
+- `pipeline.py` — 管道编排：标准化 → 别名 → 规则 → 全文 → 向量 → LLM（可选）。
+
+### LLM 客户端 (`services/llm/`)
+- `protocol.py` — `LLMClient` Protocol + `LLMResult`/`LLMCandidate` 数据类。
+- `stub.py` — `StubClient`（LLM_ENABLED=false 时使用，返回 None）。
+- `openai_impl.py` — `OpenAIClient`（OpenAI 兼容 API，JSON schema 验证）。
+- `get_llm_client(settings)` — 工厂函数，按配置返回 Stub 或 OpenAI 客户端。
+
+---
+
 ## 前端架构
 
-- **框架**：Next.js 14 App Router，`output: 'standalone'` 模式。
-- **路由**：`/`（登录）、`/dashboard`（驾驶舱）、`/projects/[id]`（项目详情，标签页）、`/applications/new`（请款向导）。
-- **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/*`。
+- **框架**：Next.js 14 App Router，dev 模式运行于 Docker。
+- **路由**：
+  - `/`（登录）
+  - `/dashboard`（驾驶舱 — 项目数、待审核请款）
+  - `/projects/[id]`（项目详情，11 个标签页：概况、合同、请款、文件、变更、保留款、扣款、发票收款、标准项目、映射、主预算）
+  - `/applications/new`（请款向导 — 含日期选择、前期累计、8 栏位实时合计预览）
+  - `/applications/[id]`（请款详情 — 完整明细表 12 栏位、8 栏位合计面板、审批工作流按钮）
+  - `/projects/[id]/variations`（变更台账）
+  - `/projects/[id]/retention`（保留款台账 — HOLD/RELEASE/REVERSAL + 余额）
+  - `/projects/[id]/deductions`（扣款台账）
+  - `/projects/[id]/invoices`（发票与收款 — 含差异栏位）
+  - `/projects/[id]/catalog`（标准项目目录）
+  - `/projects/[id]/mapping`（三栏映射审批）
+- **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/api/*`。
 - **认证**：cookie-based，`credentials: 'include'` 自动携带。
 - **原则**：前端不做任何业务计算，所有计算结果来自 API。
 

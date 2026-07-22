@@ -4,8 +4,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 libpq-dev gcc curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install playwright==1.49.1 \
-    && playwright install --with-deps chromium
+# Playwright Chromium install disabled — Playwright 1.49 fails on newer Debian
+# (ttf-unifont / ttf-ubuntu-font-family packages no longer available).
+# Re-enable when upgrading Playwright to a version that supports Debian 12+.
+# RUN pip install playwright==1.49.1 \
+#     && playwright install --with-deps chromium
 
 WORKDIR /app
 COPY requirements.txt .

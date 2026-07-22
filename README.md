@@ -1,6 +1,6 @@
 # 工程合同及请款管理系统 (Maggie)
 
-Engineering Contract & Payment Application Management System — a multi-project, multi-role billing platform for construction firms. Handles contracts with versioned line items, progress payment applications, retention ledgers, approval workflows, idempotent posting, and PDF/Excel document generation.
+Engineering Contract & Payment Application Management System — a multi-project, multi-role billing platform for construction firms. Handles contracts with versioned line items, progress payment applications, retention ledgers, variations, deductions, approvals, idempotent posting, invoice/collection tracking, standard item matching, optional LLM semantic matching, and PDF/Excel document generation.
 
 ---
 
@@ -9,7 +9,12 @@ Engineering Contract & Payment Application Management System — a multi-project
 本系统面向工程建设企业的财务、项目经理、造价及审核人员，提供从合同录入、项目映射、请款计算、审批过账到发票收款的完整闭环管理。核心能力包括：
 
 - **合同版本管理**：支持多版本合同，版本不可覆盖，历史可追溯。
+- **变更单台账**：合同变更（数量/金额调整）独立管理，需审批后才纳入可请款量。
 - **请款计算引擎**：纯函数计算，支持数量制、总价制、里程碑制、百分比制，自动处理保留款、扣款、税额及舍入。
+- **保留款完整台账**：HOLD/RELEASE/ADJUSTMENT/REVERSAL 分类账，余额 = SUM(entries)，无可变余额列。
+- **扣款台账**：多类型扣款（预付款抵扣、材料扣款、质量罚款等）+ 税务处理。
+- **发票与收款**：发票登记、收款分配、差异核销（不自动调整）。
+- **标准项目匹配**：别名 + 规则 + 全文检索 + 向量（pgvector）+ 可选 LLM 语义建议。
 - **审批工作流**：可配置多级审批（项目负责人 → 财务复核），过账幂等且不可逆。
 - **文档生成**：Playwright 生成 A4 可打印 PDF，openpyxl 生成 Excel，数据与数据库一致。
 - **项目级权限隔离**：用户仅能访问所属项目数据，URL 切换无法绕过。
@@ -106,16 +111,24 @@ docker compose up -d api worker frontend
 
 ## 6. 数据库迁移 (Database Migration)
 
-Alembic 管理 schema 迁移，共 6 个版本（Phase 1）：
+Alembic 管理 schema 迁移，共 14 个版本（Phase 1 + Phase 2）：
 
-| 迁移 | 内容 |
-|---|---|
-| 001 | 身份模型：organizations, users, roles, user_roles |
-| 002 | 项目模型：companies, projects, project_members, project_parties |
-| 003 | 合同模型：contracts, contract_versions, contract_items, payment_rules |
-| 004 | 文档模型：storage_roots, documents, document_links |
-| 005 | 请款模型：payment_applications, lines, retention_entries, milestone_events |
-| 006 | 审批模型：approval_workflows, approval_steps, approvals |
+| 迁移 | 内容 | 阶段 |
+|---|---|---|
+| 001 | 身份模型：organizations, users, roles, user_roles | Phase 1 |
+| 002 | 项目模型：companies, projects, project_members, project_parties | Phase 1 |
+| 003 | 合同模型：contracts, contract_versions, contract_items, payment_rules | Phase 1 |
+| 004 | 文档模型：storage_roots, documents, document_links | Phase 1 |
+| 005 | 请款模型：payment_applications, lines, retention_entries, milestone_events | Phase 1 |
+| 006 | 审批模型：approval_workflows, approval_steps, approvals, audit_logs | Phase 1 |
+| 007 | 标准项目：standard_items, standard_item_aliases, standard_cost_versions | Phase 2 |
+| 008 | 变更单：variations, variation_lines | Phase 2 |
+| 009 | 扣款：deductions | Phase 2 |
+| 010 | 发票：invoices, invoice_application_links | Phase 2 |
+| 011 | 收款：collections, collection_allocations | Phase 2 |
+| 012 | 财务调整：financial_adjustments | Phase 2 |
+| 013 | 项目映射：item_mappings, mapping_components | Phase 2 |
+| 014 | 匹配审核：matching_reviews | Phase 2 |
 
 **运行迁移：**
 
@@ -162,7 +175,7 @@ docker compose run --rm api python scripts/init_admin.py
 
 | 项目 | 合同 | 说明 |
 |---|---|---|
-| 25-032 | CQ880A-11501 | 2 个合同版本、6 项明细、2 期请款、保留款、里程碑释放 |
+| 25-032 | CQ880A-11501 | 2 个合同版本、6 项明细、3 期请款（含保留款释放 980,496）、2 笔扣款（71,000）、3 张发票、2 笔收款（差异 90/30） |
 | 24-023 | FS11308001 | 38,980,000 含税总价、树状明细（4+ 父项）、多单位（处/式/孔/m/m³） |
 
 **导入：**
@@ -209,23 +222,29 @@ docker volume inspect maggie_archive
 docker compose run --rm api python -m pytest tests/ -v
 ```
 
-Phase 1 预期 13 项测试通过：
+Phase 1 + Phase 2 预期 50 项测试通过（19 项规格测试 + 31 项单元测试）：
 
-| # | 测试 | 层级 |
-|---|---|---|
-| 1 | 合同项目合计 | calc_engine unit |
-| 2 | 版本不覆盖 | service + db |
-| 3 | 超量拦截 | calc_engine |
-| 5 | 保留款计算 | calc_engine |
-| 7 | 保留款释放 | service + ledger |
-| 8 | 税额与舍入 | calc_engine |
-| 10 | 过账幂等 | api |
-| 11 | 已过账不可编辑 | api |
-| 13 | 路径穿越防护 | file_service |
-| 14 | 文件哈希 | file_service |
-| 15 | 项目权限隔离 | api + rbac |
-| 16 | LLM 关闭核心流程 | integration |
-| 19 | PDF 合计一致 | docgen + api |
+| # | 测试 | 层级 | 阶段 |
+|---|---|---|---|
+| 1 | 合同项目合计 | calc_engine unit | Phase 1 |
+| 2 | 版本不覆盖 | service + db | Phase 1 |
+| 3 | 超量拦截 | calc_engine | Phase 1 |
+| 4 | 未批准变更不可请款 | service | Phase 2 |
+| 5 | 保留款计算 | calc_engine | Phase 1 |
+| 6 | 项目级保留款例外 | service | Phase 2 |
+| 7 | 保留款释放 | service + ledger | Phase 1 |
+| 8 | 税额与舍入 | calc_engine | Phase 1 |
+| 9 | 扣款税务处理 | service | Phase 2 |
+| 10 | 过账幂等 | api | Phase 1 |
+| 11 | 已过账不可编辑 | api | Phase 1 |
+| 12 | 发票/收款差异 | service | Phase 2 |
+| 13 | 路径穿越防护 | file_service | Phase 1 |
+| 14 | 文件哈希 | file_service | Phase 1 |
+| 15 | 项目权限隔离 | api + rbac | Phase 1 |
+| 16 | LLM 关闭核心流程 | integration | Phase 1 |
+| 17 | LLM 输出 schema | matching (stub + fixture) | Phase 2 |
+| 18 | 跨项目数据隔离 | api | Phase 2 |
+| 19 | PDF 合计一致 | docgen + api | Phase 1 |
 
 ### 前端测试（Phase 2+）
 
@@ -309,23 +328,23 @@ docker compose run --rm api python scripts/import_reference.py --dir /path/to/re
 
 ---
 
-## 14. 已知限制 (Known Limitations — Phase 1)
+## 14. 已知限制 (Known Limitations — Phase 3 待实现)
 
-Phase 1 实现核心请款闭环，以下功能在 Phase 2/3 完成：
+Phase 1 + Phase 2 已实现核心请款闭环 + 计费与发票收款 + 标准项目匹配，以下功能在 Phase 3 完成：
 
-| 功能 | Phase | 说明 |
-|---|---|---|
-| OCR 文字识别 | 3 | 合同原件 OCR 提取 |
-| LLM 语义匹配 | 2 | 标准项目智能映射 |
-| 变更单 (Variations) | 2 | 合同变更全额台账 |
-| 保留款完整台账 | 2 | HOLD/RELEASE/ADJUSTMENT/REVERSAL 完整分类账 |
-| 扣款完整台账 | 2 | 多类型扣款 + 税务处理 |
-| 发票与收款 | 2 | 发票登记、收款分配、差异核销 |
-| 标准项目映射 | 2 | 别名、规则、全文、向量、LLM 匹配 |
-| 报表 (11 种) | 3 | DB 视图 + 导出器 |
-| 数据库视图 (8 个) | 3 | 性能优化索引 |
-| 备份一致性检查 | 3 | 自动化验证 |
-| E2E 测试 | 3 | Playwright 全流程 |
+| 功能 | Phase | 状态 | 说明 |
+|---|---|---|---|
+| OCR 文字识别 | 3 | 待实现 | 合同原件 OCR 提取 |
+| LLM 语义匹配 | 2 | ✅ 已实现 | 标准项目智能映射（Stub + OpenAI 兼容） |
+| 变更单 (Variations) | 2 | ✅ 已实现 | 合同变更全额台账 |
+| 保留款完整台账 | 2 | ✅ 已实现 | HOLD/RELEASE/ADJUSTMENT/REVERSAL 完整分类账 |
+| 扣款完整台账 | 2 | ✅ 已实现 | 多类型扣款 + 税务处理 |
+| 发票与收款 | 2 | ✅ 已实现 | 发票登记、收款分配、差异核销 |
+| 标准项目映射 | 2 | ✅ 已实现 | 别名、规则、全文、向量、LLM 匹配 |
+| 报表 (11 种) | 3 | 待实现 | DB 视图 + 导出器 |
+| 数据库视图 (8 个) | 3 | 待实现 | 性能优化索引 |
+| 备份一致性检查 | 3 | 待实现 | 自动化验证 |
+| E2E 测试 | 3 | 待实现 | Playwright 全流程 |
 
 ---
 

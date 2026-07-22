@@ -8,11 +8,11 @@ settings = get_settings()
 _serializer = URLSafeTimedSerializer(settings.APP_SECRET, salt="auth-tokens")
 
 
-def create_access_token(user_id: uuid.UUID, org_id: uuid.UUID, roles: list[str]) -> str:
+def create_access_token(user_id: uuid.UUID, org_id: uuid.UUID, roles: list) -> str:
     payload = {
         "sub": str(user_id),
         "org": str(org_id),
-        "roles": roles,
+        "roles": [r.value if hasattr(r, "value") else r for r in roles],
         "type": "access",
         "iat": int(time.time()),
     }

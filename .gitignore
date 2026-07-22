@@ -8,3 +8,4 @@ node_modules/
 .pytest_cache/
 .DS_Store
 Thumbs.db
+.opencode/

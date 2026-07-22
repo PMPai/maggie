@@ -68,6 +68,92 @@
       "taxable_amount": "327192",
       "tax_amount": "16360",
       "invoice_amount": "343552"
+    },
+    {
+      "application_no": "25-032-P3",
+      "period_no": 3,
+      "period_start": "2026-05-01",
+      "period_end": "2026-05-31",
+      "application_date": "2026-05-31",
+      "status": "POSTED",
+      "gross_completed_amount": "0",
+      "retention_held_amount": "0",
+      "retention_released_amount": "980496",
+      "deduction_amount": "71000",
+      "taxable_amount": "980496",
+      "tax_amount": "49025",
+      "invoice_amount": "1029521"
+    }
+  ],
+  "deductions": [
+    {
+      "deduction_no": "25-032-D1",
+      "deduction_type": "ADVANCE_OFFSET",
+      "description": "预付款抵扣",
+      "amount": "60000",
+      "tax_treatment": "TAXABLE",
+      "status": "APPROVED",
+      "effective_date": "2026-05-01"
+    },
+    {
+      "deduction_no": "25-032-D2",
+      "deduction_type": "MATERIAL_DEDUCTION",
+      "description": "材料扣款",
+      "amount": "11000",
+      "tax_treatment": "TAXABLE",
+      "status": "APPROVED",
+      "effective_date": "2026-05-01"
+    }
+  ],
+  "invoices": [
+    {
+      "invoice_no": "INV-25-032-001",
+      "invoice_type": "STANDARD",
+      "issue_date": "2026-04-15",
+      "amount_ex_tax": "7521536",
+      "tax_amount": "371077",
+      "amount_inc_tax": "7892613",
+      "tax_rate": "0.05",
+      "status": "ISSUED",
+      "source": "GENERATED"
+    },
+    {
+      "invoice_no": "INV-25-032-002",
+      "invoice_type": "STANDARD",
+      "issue_date": "2026-04-28",
+      "amount_ex_tax": "327192",
+      "tax_amount": "16360",
+      "amount_inc_tax": "343552",
+      "tax_rate": "0.05",
+      "status": "ISSUED",
+      "source": "GENERATED"
+    },
+    {
+      "invoice_no": "INV-25-032-003",
+      "invoice_type": "STANDARD",
+      "issue_date": "2026-05-31",
+      "amount_ex_tax": "1809547",
+      "tax_amount": "90477",
+      "amount_inc_tax": "1900024",
+      "tax_rate": "0.05",
+      "status": "DRAFT",
+      "source": "EMAIL_SUGGESTED"
+    }
+  ],
+  "collections": [
+    {
+      "receipt_no": "R-001",
+      "receipt_date": "2026-05-10",
+      "amount_received": "7892523",
+      "payment_method": "BANK_TRANSFER",
+      "status": "CONFIRMED"
+    },
+    {
+      "receipt_no": "R-002",
+      "receipt_date": "2026-05-20",
+      "amount_received": "343522",
+      "payment_method": "BANK_TRANSFER",
+      "status": "CONFIRMED"
     }
   ]
 }

@@ -40,31 +40,39 @@ services:
     volumes:
       - archive:/data/archive
       - ./backend:/app
+      - ./scripts:/app/scripts:ro
+      - ./sample-data:/app/sample-data:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - archive:/data/archive
-      - ./backend:/app
-    command: celery -A app.tasks.celery_app worker --loglevel=info
+  # worker: temporarily disabled — backend/app/tasks/celery_app.py does not exist yet.
+  # Uncomment once the Celery stub is added (Phase 2 async jobs).
+  # worker:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   env_file: .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   volumes:
+  #     - archive:/data/archive
+  #     - ./backend:/app
+  #     - ./scripts:/app/scripts:ro
+  #     - ./sample-data:/app/sample-data:ro
+  #   command: celery -A app.tasks.celery_app worker --loglevel=info
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: node:20-alpine
+    working_dir: /app
     depends_on:
       - api
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install --no-audit --no-fund && npm run dev"
 
 volumes:
   pgdata:

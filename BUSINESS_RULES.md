@@ -231,3 +231,72 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 - **项目级**：用户仅能访问所属 `project_members` 项目（`SYSTEM_ADMIN` 例外）。
 - **URL 不可绕过**：权限检查在服务层执行，非前端路由。
 - 25-032 数据永不进入 24-023（测试 #18 验证）。
+
+---
+
+## 10. 变更单管理 (Variation Management) — Phase 2
+
+### 核心原则：未批准变更不可请款
+
+- 变更单（`variations`）记录合同的数量/金额调整，状态：`DRAFT → UNDER_REVIEW → APPROVED/REJECTED`。
+- **仅 APPROVED 变更**的 `quantity_delta` 纳入可用量计算。
+- `get_approved_variation_qty(contract_item_id)` 汇总已批准变更增量，供 `check_quantity_limit` 使用。
+- 由测试 #4（未批准变更不可请款）验证。
+
+---
+
+## 11. 扣款税务处理 (Deduction Tax) — Phase 2
+
+### 核心原则：按税务处理类型计算
+
+| 税务处理 | 税额计算 | 说明 |
+|---|---|---|
+| `TAXABLE` | `amount × tax_rate` | 扣款金额含税 |
+| `NON_TAXABLE` | 0 | 扣款不含税 |
+| `TAX_ADJUSTMENT` | `amount × tax_rate` | 税务调整 |
+
+- 扣款需 APPROVED 后才纳入请款计算。
+- `get_total_deduction_amount(app_id)` 汇总已批准扣款。
+- 由测试 #9（扣款税务处理）验证。
+
+---
+
+## 12. 发票与收款差异 (Invoice/Collection Variance) — Phase 2
+
+### 核心原则：差异显式记录，不自动核销
+
+- 发票（`invoices`）关联已过账请款（`invoice_application_links`）。
+- 收款（`collections`）分配到发票（`collection_allocations`）。
+- `get_invoice_outstanding(invoice_id)` = 含税金额 - 已分配收款。
+- **差异不自动核销**：90/30 差异独立记录，需人工创建 `financial_adjustments` 核销。
+- 邮件建议发票（source=EMAIL_SUGGESTED）标记为 DRAFT，不自动纳入已开票金额。
+- 由测试 #12（发票/收款差异）验证。
+
+### 25-032 示例
+
+| 发票 | 含税金额 | 收款 | 差异 |
+|---|---|---|---|
+| INV-25-032-001 | 7,892,613 | 7,892,523 | 90 |
+| INV-25-032-002 | 343,552 | 343,522 | 30 |
+| INV-25-032-003 | 1,900,024 | — | 邮件建议（DRAFT） |
+
+---
+
+## 13. 标准项目匹配 (Standard Item Matching) — Phase 2
+
+### 匹配管道
+
+```
+标准化 → 精确别名 → 规则匹配 → 全文检索 → 向量检索（可选）→ LLM 排序（可选）
+```
+
+### 自动应用条件
+
+仅当 `match_method=EXACT_ALIAS` **且** `unit_compatibility=SAME` 时可自动应用，其余均需人工审核。
+
+### LLM 限制
+
+- LLM 仅从系统提供的候选中排序并解释。
+- **不能**创建标准项目 ID、计算成本、决定转换、自动审批或写入数据库。
+- LLM 失败 → 人工审核回退。
+- 由测试 #17（LLM 输出 schema）验证。

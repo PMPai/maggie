@@ -97,9 +97,11 @@ async def add_line(app_id: str, req: ApplicationLineCreate, current: CurrentUser
         user_explanation=req.user_explanation or "",
     )
 
-    # Check quantity limit
+    # Check quantity limit — include approved variations
     try:
-        check_quantity_limit(item.contract_quantity, Decimal("0"), Decimal("0"), req.current_approved_quantity)
+        from app.services.variation_service import get_approved_variation_qty
+        approved_var_qty = await get_approved_variation_qty(item_id, db)
+        check_quantity_limit(item.contract_quantity, approved_var_qty, Decimal("0"), req.current_approved_quantity)
     except OverclaimError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

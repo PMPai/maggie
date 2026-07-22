@@ -31,7 +31,7 @@ def upgrade():
         sa.Column("original_tax_amount", sa.Numeric(18, 2), nullable=False, server_default="0"),
         sa.Column("original_amount_inc_tax", sa.Numeric(18, 2), nullable=False, server_default="0"),
         sa.Column("status", sa.String(16), nullable=False, server_default="DRAFT"),
-        sa.Column("active_version_id", UUID(as_uuid=True), sa.ForeignKey("contract_versions.id")),
+        sa.Column("active_version_id", UUID(as_uuid=True)),
         sa.Column("deleted_at", sa.DateTime(timezone=True)),
         sa.Column("created_by", UUID(as_uuid=True)),
         sa.Column("updated_by", UUID(as_uuid=True)),
@@ -120,8 +120,17 @@ def upgrade():
     )
     op.create_index("ix_payment_rules_contract_version_id", "payment_rules", ["contract_version_id"])
 
+    op.create_foreign_key(
+        "fk_contracts_active_version_id",
+        "contracts",
+        "contract_versions",
+        ["active_version_id"],
+        ["id"],
+    )
+
 
 def downgrade():
+    op.drop_constraint("fk_contracts_active_version_id", "contracts", type_="foreignkey")
     op.drop_table("payment_rules")
     op.drop_table("contract_items")
     op.drop_table("contract_versions")
