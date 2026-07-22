@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
+from app.security.rate_limit import RateLimitMiddleware
 from app.api.auth import router as auth_router
 from app.api.companies import router as companies_router
 from app.api.projects import router as projects_router
@@ -18,6 +19,7 @@ from app.api.collections import router as collections_router
 from app.api.financial_adjustments import router as financial_adjustments_router
 from app.api.item_mappings import router as item_mappings_router
 from app.api.matching_reviews import router as matching_reviews_router
+from app.api.reports import router as reports_router
 
 settings = get_settings()
 
@@ -46,6 +48,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware)
 
     app.include_router(auth_router)
     app.include_router(companies_router)
@@ -63,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(financial_adjustments_router)
     app.include_router(item_mappings_router)
     app.include_router(matching_reviews_router)
+    app.include_router(reports_router)
 
     @app.get("/health")
     async def health():

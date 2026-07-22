@@ -137,7 +137,7 @@ docker compose up -d api frontend
 
 ## 6. 数据库迁移 (Database Migration)
 
-Alembic 管理 schema 迁移，共 14 个版本（Phase 1 + Phase 2）：
+Alembic 管理 schema 迁移，共 16 个版本（Phase 1 + Phase 2 + Phase 3）：
 
 | 迁移 | 内容 | 阶段 |
 |---|---|---|
@@ -155,6 +155,8 @@ Alembic 管理 schema 迁移，共 14 个版本（Phase 1 + Phase 2）：
 | 012 | 财务调整：financial_adjustments | Phase 2 |
 | 013 | 项目映射：item_mappings, mapping_components | Phase 2 |
 | 014 | 匹配审核：matching_reviews | Phase 2 |
+| 015 | DB 视图：8 个报表视图 (v_contract_item_balances 等) | Phase 3 |
+| 016 | 文档模板：document_templates, generated_documents | Phase 3 |
 
 **运行迁移：**
 
@@ -248,7 +250,7 @@ docker volume inspect maggie_archive
 docker compose exec -T -e PYTHONPATH=/app api python -m pytest tests/ -v
 ```
 
-Phase 1 + Phase 2 预期 50 项测试通过（19 项规格测试 + 31 项单元测试）：
+Phase 1 + Phase 2 + Phase 3 预期 52 项测试通过（20 项规格测试 + 32 项单元测试）：
 
 | # | 测试 | 层级 | 阶段 |
 |---|---|---|---|
@@ -271,6 +273,7 @@ Phase 1 + Phase 2 预期 50 项测试通过（19 项规格测试 + 31 项单元�
 | 17 | LLM 输出 schema | matching (stub + fixture) | Phase 2 |
 | 18 | 跨项目数据隔离 | api | Phase 2 |
 | 19 | PDF 合计一致 | docgen + api | Phase 1 |
+| 20 | 备份一致性 | scripts | Phase 3 |
 
 ### 前端测试（Phase 2+）
 
@@ -354,23 +357,30 @@ docker compose run --rm api python scripts/import_reference.py --dir /path/to/re
 
 ---
 
-## 14. 已知限制 (Known Limitations — Phase 3 待实现)
+## 14. 已知限制 (Known Limitations)
 
-Phase 1 + Phase 2 已实现核心请款闭环 + 计费与发票收款 + 标准项目匹配，以下功能在 Phase 3 完成：
+Phase 1 + Phase 2 + Phase 3 已全部实现。以下为已知限制及后续优化方向：
 
 | 功能 | Phase | 状态 | 说明 |
 |---|---|---|---|
-| OCR 文字识别 | 3 | 待实现 | 合同原件 OCR 提取 |
+| OCR 文字识别 | 3 | ✅ Stub 实现 | OCR 适配器已创建，返回空结果。接入 Tesseract/云 OCR 后启用 |
 | LLM 语义匹配 | 2 | ✅ 已实现 | 标准项目智能映射（Stub + OpenAI 兼容） |
 | 变更单 (Variations) | 2 | ✅ 已实现 | 合同变更全额台账 |
 | 保留款完整台账 | 2 | ✅ 已实现 | HOLD/RELEASE/ADJUSTMENT/REVERSAL 完整分类账 |
 | 扣款完整台账 | 2 | ✅ 已实现 | 多类型扣款 + 税务处理 |
 | 发票与收款 | 2 | ✅ 已实现 | 发票登记、收款分配、差异核销 |
 | 标准项目映射 | 2 | ✅ 已实现 | 别名、规则、全文、向量、LLM 匹配 |
-| 报表 (11 种) | 3 | 待实现 | DB 视图 + 导出器 |
-| 数据库视图 (8 个) | 3 | 待实现 | 性能优化索引 |
-| 备份一致性检查 | 3 | 待实现 | 自动化验证 |
-| E2E 测试 | 3 | 待实现 | Playwright 全流程 |
+| 报表 (8 种 DB 视图) | 3 | ✅ 已实现 | v_contract_item_balances 等 8 个视图 + 报表 API |
+| 数据库视图 (8 个) | 3 | ✅ 已实现 | 迁移 015 创建 |
+| 备份一致性检查 | 3 | ✅ 已实现 | scripts/backup_check.py — 6 项完整性检查 |
+| 安全加固 | 3 | ✅ 已实现 | 登录限流 (5次/分) + API 限流 (100次/分) |
+| 历史文件导入 | 3 | ✅ 已实现 | scripts/import_reference.py — OCR + 人工审核队列 |
+| 客户模板管理 | 3 | ✅ 已实现 | document_templates + generated_documents 模型 (迁移 016) |
+| Mermaid ERD | 3 | ✅ 已实现 | docs/ERD.md |
+| 数据字典 | 3 | ✅ 已实现 | docs/DATA_DICTIONARY.md |
+| E2E 测试 | 3 | 待实现 | Playwright E2E 需修复 Docker 内 Playwright 安装 |
+| Celery Worker | 3 | 待实现 | 需创建 app.tasks.celery_app stub |
+| PDF 生成 (Docker) | 3 | 待修复 | Playwright 1.49 在 Debian 12 字体包兼容问题 |
 
 ---
 
@@ -421,6 +431,8 @@ services:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 系统架构与服务说明
 - [BUSINESS_RULES.md](BUSINESS_RULES.md) — 业务流程与规则
 - [SECURITY.md](SECURITY.md) — 安全设计与 RBAC
+- [docs/ERD.md](docs/ERD.md) — 实体关系图 (Mermaid ERD)
+- [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) — 数据字典 (22 表字段说明)
 
 ## 默认账号
 
