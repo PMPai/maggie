@@ -48,22 +48,22 @@ Browser ── HTTPS ──> nginx (frontend static + /api proxy)
 
 ---
 
-## Docker Compose 服务 (5 个)
+## Docker Compose 服务 (4 个)
 
 | 服务 | 镜像 | 角色 | 端口 |
 |---|---|---|---|
-| `frontend` | node:20-alpine (构建) → Next.js standalone | SPA + 反向代理 `/api` → `api` | 3000 |
+| `frontend` | node:20-alpine (dev 模式) | Next.js dev server + `/api` 反向代理 → `api` | 3000 |
 | `api` | python:3.12-slim + FastAPI | REST API、认证、RBAC、业务逻辑 | 8000 |
-| `worker` | 同 `api` 镜像 + Celery | 异步任务：PDF 生成、哈希、LLM 匹配 | — |
 | `postgres` | pgvector/pgvector:pg16 | 业务数据 + 可选向量检索 | 5432 |
-| `redis` | redis:7-alpine | Celery broker + result backend | 6379 |
+| `redis` | redis:7-alpine | Celery broker + result backend（Phase 3 启用 worker） | 6379 |
 
-**镜像共享**：`api` 和 `worker` 共享同一个 Docker 镜像（构建一次，两个 entrypoint）。`api` 运行 `uvicorn`，`worker` 运行 `celery`。
+**Worker 服务**已在 `docker-compose.yml` 中注释，因 `backend/app/tasks/celery_app.py` 尚未实现。Phase 3 将启用。
+
+**Playwright Chromium** 安装已在 `backend/Dockerfile` 中注释（Debian 12 字体包 `ttf-unifont` 不再可用）。PDF 生成功能在 Phase 3 修复 Playwright 版本后恢复。
 
 ### 服务依赖关系
 
 - `api` 依赖 `postgres`（健康检查通过）和 `redis`（健康检查通过）。
-- `worker` 依赖 `postgres` 和 `redis`。
 - `frontend` 依赖 `api`。
 - `postgres` 和 `redis` 无外部依赖。
 
@@ -73,6 +73,15 @@ Browser ── HTTPS ──> nginx (frontend static + /api proxy)
 |---|---|
 | `pgdata` | PostgreSQL 数据目录 |
 | `archive` | 文件存储（合同原件、生成文档） |
+
+### 挂载卷
+
+| 挂载 | 用途 |
+|---|---|
+| `./backend:/app` | 后端源码热重载 |
+| `./scripts:/app/scripts:ro` | 脚本（init_admin.py, seed.py） |
+| `./sample-data:/app/sample-data:ro` | 种子数据 JSON |
+| `./frontend:/app` | 前端源码热重载 |
 
 ---
 
@@ -230,32 +239,74 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 
 ## 前端架构
 
-- **框架**：Next.js 14 App Router，dev 模式运行于 Docker。
+### 设计系统 (Design System)
+
+采用 **Data-Dense Dashboard** 设计风格（由 ui-ux-pro-max 技能推荐）：
+
+| 元素 | 设计 |
+|---|---|
+| 主色 | Slate-500 (#64748B) — 专业、工业风 |
+| 强调色 | Orange-500 (#F97316) — CTA、活跃状态 |
+| 背景 | Slate-50 (#F8FAFC) |
+| 字体 | Inter (英文) + Noto Sans SC (中文) + Fira Code (数字/代码) |
+| 效果 | 行悬停高亮、平滑过渡 (150-300ms)、加载旋转器、悬停提示 |
+
+### 共享组件 (`frontend/components/`)
+
+| 组件 | 说明 |
+|---|---|
+| `AppShell` | 侧边栏导航 + 主内容区，登录页不显示侧边栏 |
+| `PageHeader` | 页面标题 + 副标题 + 操作按钮区 |
+| `Card` / `CardHeader` | 带边框的卡片容器 |
+| `StatCard` | 统计卡片（图标 + 标签 + 数值） |
+| `StatusBadge` | 状态标签（绿/蓝/橙/红/灰/黄 6 色） |
+| `EmptyState` | 空状态（图标 + 提示文字） |
+| `formatMoney` / `formatNumber` | 金额/数量格式化（千分位 + 右对齐等宽字体） |
+
+### CSS 组件类 (`globals.css`)
+
+```css
+.card          /* 白色背景 + 边框 + 阴影 */
+.data-table    /* 带边框表头 + 行悬停高亮 */
+.btn-primary   /* 橙色主按钮 */
+.btn-secondary /* 白色次要按钮 */
+.input-field   /* 输入框（聚焦橙色环） */
+.badge-*       /* 6 色状态标签 */
+.stat-card     /* 统计卡片 */
+.tab-active    /* 活跃标签（橙色下划线） */
+.nav-link      /* 侧边栏导航链接 */
+```
+
+### 路由
+
+- **框架**：Next.js 14 App Router，`npm run dev` 模式运行于 Docker。
 - **路由**：
-  - `/`（登录）
-  - `/dashboard`（驾驶舱 — 项目数、待审核请款）
-  - `/projects/[id]`（项目详情，11 个标签页：概况、合同、请款、文件、变更、保留款、扣款、发票收款、标准项目、映射、主预算）
-  - `/applications/new`（请款向导 — 含日期选择、前期累计、8 栏位实时合计预览）
-  - `/applications/[id]`（请款详情 — 完整明细表 12 栏位、8 栏位合计面板、审批工作流按钮）
+  - `/`（登录 — 居中卡片 + 橙色 Logo）
+  - `/dashboard`（驾驶舱 — 3 个 StatCard + 项目数据表）
+  - `/projects/[id]`（项目详情，10 个标签页：概况、合同、请款、文件、变更、保留款、扣款、发票收款、标准项目、映射）
+  - `/applications/new`（请款向导 — 4 步可视化指示器 + 实时 8 栏位合计预览）
+  - `/applications/[id]`（请款详情 — 12 栏位明细表 + 8 栏位合计面板 + 审批工作流按钮）
   - `/projects/[id]/variations`（变更台账）
-  - `/projects/[id]/retention`（保留款台账 — HOLD/RELEASE/REVERSAL + 余额）
+  - `/projects/[id]/retention`（保留款台账 — HOLD/RELEASE/REVERSAL + 余额 StatCard）
   - `/projects/[id]/deductions`（扣款台账）
-  - `/projects/[id]/invoices`（发票与收款 — 含差异栏位）
+  - `/projects/[id]/invoices`（发票与收款 — 双卡片并排 + 差异栏位）
   - `/projects/[id]/catalog`（标准项目目录）
-  - `/projects/[id]/mapping`（三栏映射审批）
+  - `/projects/[id]/mapping`（映射审批）
 - **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/api/*`。
 - **认证**：cookie-based，`credentials: 'include'` 自动携带。
 - **原则**：前端不做任何业务计算，所有计算结果来自 API。
 
 ---
 
-## 异步任务 (Celery Worker)
+## 异步任务 (Celery Worker — Phase 3 待启用)
 
 | 任务 | 触发 | 说明 |
 |---|---|---|
 | PDF 生成 | 请款过账后 | Playwright Chromium 渲染 A4 PDF |
 | Excel 生成 | 请款过账后 | openpyxl 生成 .xlsx |
 | 文件哈希 | 上传后 | SHA-256 计算（大文件异步） |
-| LLM 匹配 | 手动触发（Phase 2+） | 标准项目语义匹配建议 |
+| LLM 匹配 | 手动触发 | 标准项目语义匹配建议 |
 
-Worker 与 API 共享镜像，确保业务逻辑代码一致。
+Worker 服务已在 `docker-compose.yml` 中注释，因 `backend/app/tasks/celery_app.py` 尚未实现。Phase 3 将创建 Celery stub + 启用 worker。
+
+> **Playwright 注意**：`backend/Dockerfile` 中 Playwright 安装已注释（Debian 12 `ttf-unifont` 字体包不再可用）。需升级 Playwright 版本后恢复。PDF 生成测试 (#19) 通过主机 pytest 运行，不依赖 Docker 内 Playwright。

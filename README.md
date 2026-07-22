@@ -25,12 +25,12 @@ Engineering Contract & Payment Application Management System — a multi-project
 
 | 层 | 技术 | 说明 |
 |---|---|---|
-| 前端 | Next.js 14 (React + TypeScript), Tailwind CSS | SPA 式内部管理界面，nginx 提供静态资源 + `/api` 反向代理 |
+| 前端 | Next.js 14 (React + TypeScript), Tailwind CSS | SPA 式内部管理界面，Data-Dense Dashboard 设计风格，侧边栏导航 |
 | 后端 API | FastAPI (Python 3.12), SQLAlchemy 2.x, Pydantic v2 | RESTful API，RBAC 权限控制，HttpOnly cookie 认证 |
 | 数据库 | PostgreSQL 16 + pgvector | 业务数据 + 可选向量检索（LLM 匹配） |
-| 缓存/消息 | Redis 7 | Celery broker + result backend |
-| 异步任务 | Celery | PDF 生成、哈希计算、LLM 匹配（Phase 2+） |
-| 部署 | Docker Compose | 5 个服务，一键启动 |
+| 缓存/消息 | Redis 7 | Celery broker + result backend（Phase 2 暂未启用 worker） |
+| 异步任务 | Celery | PDF 生成、哈希计算、LLM 匹配（Phase 3 启用） |
+| 部署 | Docker Compose | 4 个服务（postgres, redis, api, frontend），一键启动 |
 
 详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -55,33 +55,58 @@ Engineering Contract & Payment Application Management System — a multi-project
 ### 4.1 克隆并配置环境变量
 
 ```powershell
-git clone <repo-url> maggie
+git clone https://github.com/PMPai/maggie.git
 cd maggie
 copy .env.example .env
 ```
 
-编辑 `.env`，至少修改 `APP_SECRET` 为一个随机字符串（64 字符）。
+编辑 `.env`，**必须**修改以下内容：
+
+```env
+APP_SECRET=<64-char random string>
+DATABASE_URL=postgresql+asyncpg://maggie:maggie@postgres:5432/maggie
+SYNC_DATABASE_URL=postgresql://maggie:maggie@postgres:5432/maggie
+```
+
+> ⚠️ `DATABASE_URL` 必须包含 `+asyncpg` 驱动前缀，否则异步引擎启动失败。
+> `SYNC_DATABASE_URL` 用于 Alembic 迁移（同步驱动，不含 `+asyncpg`）。
 
 ### 4.2 构建并启动所有服务
 
 ```powershell
-docker compose up --build
+docker compose up -d postgres redis
+docker compose up -d --build api
+docker compose up -d --build frontend
 ```
 
-首次构建约 5-10 分钟（需下载 Playwright Chromium ~300MB）。启动后：
+首次 API 构建约 2-3 分钟。前端使用 `node:20-alpine` + `npm run dev` 模式，首次启动约 30 秒（含 `npm install`）。
+
+> **注意**：Playwright Chromium 安装已在 Dockerfile 中注释（Debian 12 字体包兼容问题）。PDF 生成功能在 Phase 3 修复。Worker 服务已注释（`app.tasks.celery_app` 尚未实现）。
+
+启动后：
 
 | 服务 | 地址 | 说明 |
 |---|---|---|
-| 前端 | http://localhost:3000 | 登录页面 |
+| 前端 | http://localhost:3000 | 登录页面（侧边栏导航 + Data-Dense Dashboard 风格） |
 | API | http://localhost:8000 | FastAPI |
 | API 文档 | http://localhost:8000/api/docs | Swagger UI |
 | 健康检查 | http://localhost:8000/health | `{"status":"ok"}` |
 
-### 4.3 后台启动（开发模式）
+### 4.3 初始化数据库
+
+```powershell
+docker compose exec -T -e PYTHONPATH=/app api alembic upgrade head
+docker compose exec -T -e PYTHONPATH=/app api python scripts/init_admin.py
+docker compose exec -T -e PYTHONPATH=/app api python scripts/seed.py
+```
+
+完成后打开 http://localhost:3000，使用 `admin@maggie.local / admin123` 登录。
+
+### 4.4 后台启动（开发模式）
 
 ```powershell
 docker compose up -d postgres redis
-docker compose up -d api worker frontend
+docker compose up -d api frontend
 ```
 
 ---
@@ -94,13 +119,14 @@ docker compose up -d api worker frontend
 |---|---|---|
 | `APP_ENV` | `development` | `production` 时启用 Secure cookie |
 | `APP_SECRET` | `change-me-...` | JWT 签名密钥，**生产必须修改** |
-| `DATABASE_URL` | `postgresql://maggie:maggie@postgres:5432/maggie` | 数据库连接串 |
+| `DATABASE_URL` | `postgresql+asyncpg://...` | 数据库连接串（**必须含 `+asyncpg`**） |
+| `SYNC_DATABASE_URL` | `postgresql://...` | Alembic 迁移用同步连接串（**不含 `+asyncpg`**） |
 | `REDIS_URL` | `redis://redis:6379/0` | Redis 连接串 |
 | `FILE_STORAGE_ROOT` | `/data/archive` | 文件存储根目录（Docker volume） |
 | `MAX_UPLOAD_SIZE_MB` | `100` | 上传文件大小上限 |
 | `DEFAULT_TIMEZONE` | `Asia/Taipei` | 默认时区 |
 | `DEFAULT_CURRENCY` | `TWD` | 默认币别 |
-| `LLM_ENABLED` | `false` | 是否启用 LLM 匹配（Phase 2+） |
+| `LLM_ENABLED` | `false` | 是否启用 LLM 匹配 |
 | `LLM_PROVIDER` | `openai-compatible` | LLM 提供商 |
 | `LLM_BASE_URL` | (空) | LLM API 地址 |
 | `LLM_API_KEY` | (空) | LLM API 密钥 |
@@ -133,19 +159,19 @@ Alembic 管理 schema 迁移，共 14 个版本（Phase 1 + Phase 2）：
 **运行迁移：**
 
 ```powershell
-docker compose run --rm api alembic upgrade head
+docker compose exec -T -e PYTHONPATH=/app api alembic upgrade head
 ```
 
 **回滚一个版本：**
 
 ```powershell
-docker compose run --rm api alembic downgrade -1
+docker compose exec -T -e PYTHONPATH=/app api alembic downgrade -1
 ```
 
 **查看当前版本：**
 
 ```powershell
-docker compose run --rm api alembic current
+docker compose exec -T -e PYTHONPATH=/app api alembic current
 ```
 
 ---
@@ -153,7 +179,7 @@ docker compose run --rm api alembic current
 ## 7. 初始管理员创建 (Initial Admin Creation)
 
 ```powershell
-docker compose run --rm api python scripts/init_admin.py
+docker compose exec -T -e PYTHONPATH=/app api python scripts/init_admin.py
 ```
 
 默认创建：
@@ -181,7 +207,7 @@ docker compose run --rm api python scripts/init_admin.py
 **导入：**
 
 ```powershell
-docker compose run --rm api python scripts/seed.py
+docker compose exec -T -e PYTHONPATH=/app api python scripts/seed.py
 ```
 
 导入后可用 `admin@maggie.local / admin123` 登录查看。
@@ -219,7 +245,7 @@ docker volume inspect maggie_archive
 ### 后端单元 + 集成测试
 
 ```powershell
-docker compose run --rm api python -m pytest tests/ -v
+docker compose exec -T -e PYTHONPATH=/app api python -m pytest tests/ -v
 ```
 
 Phase 1 + Phase 2 预期 50 项测试通过（19 项规格测试 + 31 项单元测试）：
