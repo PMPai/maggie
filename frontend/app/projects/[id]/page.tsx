@@ -5,11 +5,12 @@ import { api } from '@/lib/api';
 import type { Project, Contract, Application } from '@/lib/types';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
 
 type Tab = 'overview' | 'contracts' | 'applications' | 'files' | 'variations' | 'retention' | 'deductions' | 'invoices' | 'catalog' | 'mapping';
 
 const TAB_LABELS: Record<Tab, string> = {
-  overview: '项目概况',
+  overview: '概况',
   contracts: '合同',
   applications: '请款',
   files: '文件',
@@ -17,8 +18,8 @@ const TAB_LABELS: Record<Tab, string> = {
   retention: '保留款',
   deductions: '扣款',
   invoices: '发票收款',
-  catalog: '标准项字典',
-  mapping: '映射审批',
+  catalog: '标准项目',
+  mapping: '映射',
 };
 
 const LEDGER_TABS: Tab[] = ['variations', 'retention', 'deductions', 'invoices', 'catalog', 'mapping'];
@@ -43,60 +44,139 @@ export default function ProjectDetailPage() {
 
   return (
     <main className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2">{project.project_name}</h1>
-      <p className="text-gray-500 mb-6">{project.internal_project_code} · {project.currency}</p>
-      <div className="flex gap-4 border-b mb-6 overflow-x-auto">
+      <PageHeader title={project.project_name} subtitle={`${project.internal_project_code} · ${project.currency}`} />
+
+      <div className="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
         {(Object.keys(TAB_LABELS) as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 whitespace-nowrap ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2.5 text-sm whitespace-nowrap ${tab === t ? 'tab-active' : 'tab-inactive'}`}
+          >
             {TAB_LABELS[t]}
           </button>
         ))}
       </div>
+
       {tab === 'overview' && (
-        <div className="space-y-2">
-          <p><strong>状态：</strong>{project.status}</p>
-          <p><strong>币别：</strong>{project.currency}</p>
-          <p><strong>默认税率：</strong>{project.default_tax_rate}</p>
-          <p><strong>说明：</strong>{project.description || '—'}</p>
-        </div>
+        <Card>
+          <CardHeader title="项目概况" />
+          <div className="card-body">
+            <dl className="grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-xs text-slate-500 mb-1">状态</dt>
+                <dd><StatusBadge status={project.status} /></dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500 mb-1">币别</dt>
+                <dd className="text-sm text-slate-800">{project.currency}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500 mb-1">默认税率</dt>
+                <dd className="text-sm text-slate-800">{project.default_tax_rate}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500 mb-1">说明</dt>
+                <dd className="text-sm text-slate-800">{project.description || '—'}</dd>
+              </div>
+            </dl>
+          </div>
+        </Card>
       )}
+
       {tab === 'contracts' && (
-        <div>
-          <Link href={`/projects/${projectId}/contracts`} className="text-blue-600 hover:underline">查看合同版本及项目 →</Link>
-          <table className="w-full mt-4">
-            <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left">合同编号</th><th className="px-4 py-2 text-left">名称</th><th className="px-4 py-2 text-left">状态</th></tr></thead>
-            <tbody>
-              {contracts.map(c => (
-                <tr key={c.id} className="border-t"><td className="px-4 py-2">{c.external_contract_no}</td><td className="px-4 py-2">{c.contract_name}</td><td className="px-4 py-2">{c.status}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {tab === 'applications' && (
-        <div>
-          <Link href="/applications/new" className="text-blue-600 hover:underline">新建请款 →</Link>
-          <table className="w-full mt-4">
-            <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left">请款编号</th><th className="px-4 py-2 text-left">期数</th><th className="px-4 py-2 text-left">状态</th><th className="px-4 py-2 text-right">含税金额</th></tr></thead>
-            <tbody>
-              {applications.map(a => (
-                <tr key={a.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-2"><Link href={`/applications/${a.id}`} className="text-blue-600 hover:underline">{a.application_no}</Link></td>
-                  <td className="px-4 py-2">第{a.period_no}期</td>
-                  <td className="px-4 py-2">{a.status}</td>
-                  <td className="px-4 py-2 text-right">{Number(a.invoice_amount).toLocaleString()}</td>
+        <Card>
+          <CardHeader title="合同" />
+          <div className="card-body">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>合同编号</th>
+                  <th>名称</th>
+                  <th>税务模式</th>
+                  <th>税率</th>
+                  <th>状态</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {contracts.map(c => (
+                  <tr key={c.id}>
+                    <td>{c.external_contract_no}</td>
+                    <td>{c.contract_name}</td>
+                    <td>{c.tax_mode}</td>
+                    <td>{c.tax_rate}</td>
+                    <td><StatusBadge status={c.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
-      {tab === 'files' && <p className="text-gray-500">文件档案将在后续阶段完善</p>}
+
+      {tab === 'applications' && (
+        <Card>
+          <CardHeader
+            title="请款"
+            actions={
+              <Link href="/applications/new" className="btn-primary">新建请款</Link>
+            }
+          />
+          <div className="card-body">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>请款编号</th>
+                  <th>期数</th>
+                  <th>状态</th>
+                  <th className="text-right">本期完成</th>
+                  <th className="text-right">保留款</th>
+                  <th className="text-right">含税金额</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map(a => (
+                  <tr key={a.id}>
+                    <td>
+                      <Link href={`/applications/${a.id}`} className="text-orange-600 hover:underline">
+                        {a.application_no}
+                      </Link>
+                    </td>
+                    <td>第{a.period_no}期</td>
+                    <td><StatusBadge status={a.status} /></td>
+                    <td className="num">{formatMoney(a.gross_completed_amount)}</td>
+                    <td className="num">{formatMoney(a.retention_held_amount)}</td>
+                    <td className="num">{formatMoney(a.invoice_amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {tab === 'files' && (
+        <Card>
+          <div className="card-body">
+            <EmptyState message="文件档案将在后续阶段完善" />
+          </div>
+        </Card>
+      )}
+
       {LEDGER_TABS.includes(tab) && (
-        <div className="space-y-3">
-          <p className="text-gray-600">{TAB_LABELS[tab]} 详情请点击下方链接进入专属台账页面。</p>
-          <Link href={`/projects/${projectId}/${tab}`} className="inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">进入{TAB_LABELS[tab]}台账 →</Link>
-        </div>
+        <Card>
+          <div className="card-body">
+            <Link
+              href={`/projects/${projectId}/${tab}`}
+              className="btn-secondary inline-flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              查看{TAB_LABELS[tab]}台账 →
+            </Link>
+          </div>
+        </Card>
       )}
     </main>
   );

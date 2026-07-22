@@ -5,6 +5,20 @@ import { api } from '@/lib/api';
 import type { Contract, RetentionEntry } from '@/lib/types';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { PageHeader, Card, CardHeader, StatCard, EmptyState, formatMoney } from '@/components/ui/common';
+
+const TYPE_BADGE: Record<string, string> = {
+  HOLD: 'badge-orange',
+  RELEASE: 'badge-green',
+  ADJUSTMENT: 'badge-blue',
+  REVERSAL: 'badge-red',
+};
+const TYPE_LABEL: Record<string, string> = {
+  HOLD: '保留',
+  RELEASE: '释放',
+  ADJUSTMENT: '调整',
+  REVERSAL: '冲回',
+};
 
 export default function RetentionPage() {
   const { user, loading } = useAuth();
@@ -37,9 +51,6 @@ export default function RetentionPage() {
   if (loading) return <div className="p-8">加载中...</div>;
   if (!user) return <div className="p-8">请先登录</div>;
 
-  const num = (v: number) => Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
-  const typeLabel: Record<string, string> = { HOLD: '保留', RELEASE: '释放', ADJUSTMENT: '调整', REVERSAL: '冲回' };
-
   let running = 0;
   const rows = entries.map(e => {
     const delta = e.entry_type === 'HOLD' ? -e.amount : e.amount;
@@ -49,45 +60,57 @@ export default function RetentionPage() {
 
   return (
     <main className="p-8 max-w-6xl mx-auto">
-      <div className="mb-4">
-        <Link href={`/projects/${projectId}`} className="text-blue-600 hover:underline">← 返回项目</Link>
-      </div>
-      <h1 className="text-2xl font-bold mb-6">保留款台账</h1>
+      <Link href={`/projects/${projectId}`} className="text-sm text-slate-500 hover:text-slate-700">← 返回项目</Link>
+      <PageHeader title="保留款台账" />
 
-      {error && <p className="mb-4 text-red-600">加载失败：{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-600">加载失败：{error}</p>}
 
-      <div className="mb-4 rounded-lg bg-blue-50 p-4">
-        <p className="text-sm text-gray-600">当前保留款余额</p>
-        <p className="text-2xl font-bold text-blue-700">{num(running)}</p>
+      <div className="mb-6">
+        <StatCard
+          label="当前保留款余额"
+          value={formatMoney(running)}
+          color="orange"
+          icon="M3 10h18M7 15h1m4 0h1m4 0h1M3 5h18a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
+        />
       </div>
 
-      <div className="rounded-lg bg-white shadow overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left">类型</th>
-              <th className="px-4 py-2 text-right">金额</th>
-              <th className="px-4 py-2 text-right">变动</th>
-              <th className="px-4 py-2 text-right">累计余额</th>
-              <th className="px-4 py-2 text-left">说明</th>
-              <th className="px-4 py-2 text-left">日期</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(e => (
-              <tr key={e.id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-2">{typeLabel[e.entry_type] || e.entry_type}</td>
-                <td className="px-4 py-2 text-right">{num(e.amount)}</td>
-                <td className="px-4 py-2 text-right">{e.delta >= 0 ? '+' : ''}{num(e.delta)}</td>
-                <td className="px-4 py-2 text-right font-medium">{num(e.balance)}</td>
-                <td className="px-4 py-2">{e.description}</td>
-                <td className="px-4 py-2">{e.created_at.slice(0, 10)}</td>
-              </tr>
-            ))}
-            {entries.length === 0 && <tr><td colSpan={6} className="px-4 py-4 text-center text-gray-500">暂无保留款记录</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <CardHeader title="保留款记录" />
+        <div className="card-body">
+          {entries.length === 0 ? (
+            <EmptyState message="暂无保留款记录" />
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>类型</th>
+                  <th className="text-right">金额</th>
+                  <th className="text-right">变动</th>
+                  <th className="text-right">累计余额</th>
+                  <th>说明</th>
+                  <th>日期</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(e => (
+                  <tr key={e.id}>
+                    <td>
+                      <span className={`badge ${TYPE_BADGE[e.entry_type] || 'badge-gray'}`}>
+                        {TYPE_LABEL[e.entry_type] || e.entry_type}
+                      </span>
+                    </td>
+                    <td className="num">{formatMoney(e.amount)}</td>
+                    <td className="num">{e.delta >= 0 ? '+' : ''}{formatMoney(e.delta)}</td>
+                    <td className="num font-semibold">{formatMoney(e.balance)}</td>
+                    <td>{e.description}</td>
+                    <td>{e.created_at.slice(0, 10)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
     </main>
   );
 }

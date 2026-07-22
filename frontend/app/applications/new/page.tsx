@@ -2,13 +2,15 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { Project, Contract, ContractItem, Application, ApplicationLine, ApplicationTotals } from '@/lib/types';
+import type { Project, Contract, ContractItem, Application, ApplicationTotals } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { PageHeader, Card, CardHeader, formatMoney, formatNumber } from '@/components/ui/common';
+
+const STEPS = ['选择项目', '选择合同', '请款信息', '输入数量'] as const;
 
 export default function NewApplicationPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState(1);
   const [projects, setProjects] = useState<Project[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [items, setItems] = useState<ContractItem[]>([]);
@@ -22,6 +24,7 @@ export default function NewApplicationPage() {
   const [lines, setLines] = useState<{ itemId: string; qty: string }[]>([]);
   const [preview, setPreview] = useState<ApplicationTotals | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (user) api.get<Project[]>('/projects').then(setProjects);
@@ -29,6 +32,7 @@ export default function NewApplicationPage() {
 
   useEffect(() => {
     if (selectedProject) api.get<Contract[]>(`/contracts?project_id=${selectedProject}`).then(setContracts);
+    else setContracts([]);
   }, [selectedProject]);
 
   useEffect(() => {
@@ -37,6 +41,8 @@ export default function NewApplicationPage() {
       if (contract?.active_version_id) {
         api.get<ContractItem[]>(`/contracts/contract-versions/${contract.active_version_id}/items`).then(setItems);
       }
+    } else {
+      setItems([]);
     }
   }, [selectedContract, contracts]);
 
@@ -82,127 +88,232 @@ export default function NewApplicationPage() {
   if (!user) return <div className="p-8">请先登录</div>;
 
   const handleCreate = async () => {
-    const contract = contracts.find(c => c.id === selectedContract)!;
-    const today = applicationDate || new Date().toISOString().slice(0, 10);
-    const pStart = periodStart || today;
-    const pEnd = periodEnd || today;
-    const app = await api.post<Application>('/payment-applications', {
-      project_id: selectedProject, contract_id: selectedContract,
-      application_no: appNo, period_no: periodNo,
-      period_start: pStart, period_end: pEnd, application_date: today,
-    });
-    for (const line of lines) {
-      if (line.qty && parseFloat(line.qty) > 0) {
-        await api.post(`/payment-applications/${app.id}/lines`, {
-          contract_item_id: line.itemId, current_claimed_quantity: line.qty, current_approved_quantity: line.qty,
-        });
+    setSubmitting(true);
+    try {
+      const contract = contracts.find(c => c.id === selectedContract)!;
+      void contract;
+      const today = applicationDate || new Date().toISOString().slice(0, 10);
+      const pStart = periodStart || today;
+      const pEnd = periodEnd || today;
+      const app = await api.post<Application>('/payment-applications', {
+        project_id: selectedProject, contract_id: selectedContract,
+        application_no: appNo, period_no: periodNo,
+        period_start: pStart, period_end: pEnd, application_date: today,
+      });
+      for (const line of lines) {
+        if (line.qty && parseFloat(line.qty) > 0) {
+          await api.post(`/payment-applications/${app.id}/lines`, {
+            contract_item_id: line.itemId, current_claimed_quantity: line.qty, current_approved_quantity: line.qty,
+          });
+        }
       }
+      router.push(`/applications/${app.id}`);
+    } catch (e) {
+      alert(`提交失败：${(e as Error).message}`);
+      setSubmitting(false);
     }
-    router.push(`/applications/${app.id}`);
   };
 
-  const num = (v: number) => Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const currentStep = !selectedProject ? 0 : !selectedContract ? 1 : !appNo ? 2 : 3;
+  const previewBuckets: { label: string; value: string; emphasis?: boolean }[] = preview
+    ? [
+        { label: '本期完成金额', value: formatMoney(preview.gross_completed_amount) },
+        { label: '本期保留款', value: formatMoney(preview.retention_held_amount) },
+        { label: '本期释放保留款', value: formatMoney(preview.retention_released_amount) },
+        { label: '本期扣款', value: formatMoney(preview.deduction_amount) },
+        { label: '本期未税可开票金额', value: formatMoney(preview.taxable_amount) },
+        { label: '税额', value: formatMoney(preview.tax_amount) },
+        { label: '含税发票金额', value: formatMoney(preview.invoice_amount), emphasis: true },
+      ]
+    : [];
 
   return (
-    <main className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">新建请款</h1>
-      <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium mb-1">步骤1：选择项目</label>
-          <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)} className="w-full rounded border px-3 py-2">
-            <option value="">请选择...</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.internal_project_code} - {p.project_name}</option>)}
-          </select>
-        </div>
-        {selectedProject && (
-          <div>
-            <label className="block text-sm font-medium mb-1">步骤2：选择合同</label>
-            <select value={selectedContract} onChange={e => setSelectedContract(e.target.value)} className="w-full rounded border px-3 py-2">
-              <option value="">请选择...</option>
-              {contracts.map(c => <option key={c.id} value={c.id}>{c.external_contract_no} - {c.contract_name}</option>)}
+    <main className="p-8 max-w-5xl mx-auto">
+      <PageHeader title="新建请款" subtitle="按步骤选择项目、合同并填写本期数量" />
+
+      <div className="flex items-center mb-6">
+        {STEPS.map((s, i) => {
+          const done = i < currentStep;
+          const active = i === currentStep;
+          return (
+            <div key={s} className="flex items-center flex-1 last:flex-none">
+              <div className="flex items-center gap-2">
+                <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold border ${done ? 'bg-orange-500 text-white border-orange-500' : active ? 'bg-white text-orange-600 border-orange-500' : 'bg-white text-slate-400 border-slate-300'}`}>
+                  {done ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : i + 1}
+                </div>
+                <span className={`text-sm ${active ? 'font-semibold text-slate-800' : done ? 'text-slate-600' : 'text-slate-400'}`}>{s}</span>
+              </div>
+              {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-3 ${done ? 'bg-orange-400' : 'bg-slate-200'}`} />}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-4">
+        <Card>
+          <CardHeader title="选择项目" actions={<span className="text-xs text-slate-400">步骤 1</span>} />
+          <div className="card-body">
+            <select
+              value={selectedProject}
+              onChange={e => { setSelectedProject(e.target.value); setSelectedContract(''); }}
+              className="select-field"
+            >
+              <option value="">请选择项目...</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.internal_project_code} - {p.project_name}</option>
+              ))}
             </select>
           </div>
-        )}
-        {selectedContract && (
-          <>
+        </Card>
+
+        <Card className={selectedProject ? '' : 'opacity-60 pointer-events-none'}>
+          <CardHeader title="选择合同" actions={<span className="text-xs text-slate-400">步骤 2</span>} />
+          <div className="card-body">
+            <select
+              value={selectedContract}
+              onChange={e => setSelectedContract(e.target.value)}
+              className="select-field"
+              disabled={!selectedProject}
+            >
+              <option value="">请选择合同...</option>
+              {contracts.map(c => (
+                <option key={c.id} value={c.id}>{c.external_contract_no} - {c.contract_name}</option>
+              ))}
+            </select>
+          </div>
+        </Card>
+
+        <Card className={selectedContract ? '' : 'opacity-60 pointer-events-none'}>
+          <CardHeader title="请款信息" actions={<span className="text-xs text-slate-400">步骤 3</span>} />
+          <div className="card-body space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">请款编号</label>
-                <input value={appNo} onChange={e => setAppNo(e.target.value)} className="w-full rounded border px-3 py-2" placeholder="如：25-032-P3" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">请款编号</label>
+                <input
+                  value={appNo}
+                  onChange={e => setAppNo(e.target.value)}
+                  className="input-field"
+                  placeholder="如：25-032-P3"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">期数</label>
-                <input type="number" value={periodNo} onChange={e => setPeriodNo(parseInt(e.target.value))} className="w-full rounded border px-3 py-2" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">期数</label>
+                <input
+                  type="number"
+                  value={periodNo}
+                  onChange={e => setPeriodNo(parseInt(e.target.value) || 1)}
+                  className="input-field"
+                />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">期间开始日期</label>
-                <input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="w-full rounded border px-3 py-2" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">开始日期</label>
+                <input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">期间结束日期</label>
-                <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="w-full rounded border px-3 py-2" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">结束日期</label>
+                <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">申请日期</label>
-                <input type="date" value={applicationDate} onChange={e => setApplicationDate(e.target.value)} className="w-full rounded border px-3 py-2" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">申请日期</label>
+                <input type="date" value={applicationDate} onChange={e => setApplicationDate(e.target.value)} className="input-field" />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">步骤3：输入本期数量</label>
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left">项次</th>
-                    <th className="px-3 py-2 text-left">项目名称</th>
-                    <th className="px-3 py-2 text-left">单位</th>
-                    <th className="px-3 py-2 text-right">合同数量</th>
-                    <th className="px-3 py-2 text-right">本期数量</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.filter(i => i.is_billable && !i.is_heading).map(item => (
-                    <tr key={item.id} className="border-t">
-                      <td className="px-3 py-2">{item.line_no}</td>
-                      <td className="px-3 py-2">{item.source_description}</td>
-                      <td className="px-3 py-2">{item.unit}</td>
-                      <td className="px-3 py-2 text-right">{Number(item.contract_quantity).toLocaleString()}</td>
-                      <td className="px-3 py-2"><input type="number" step="0.0001" className="w-24 rounded border px-2 py-1 text-right" onChange={e => {
-                        const newLines = [...lines];
-                        const existing = newLines.findIndex(l => l.itemId === item.id);
-                        if (existing >= 0) newLines[existing].qty = e.target.value;
-                        else newLines.push({ itemId: item.id, qty: e.target.value });
-                        setLines(newLines);
-                      }} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          </div>
+        </Card>
 
-            {preview && (
-              <div className="rounded-lg bg-gray-50 p-4">
-                <h3 className="text-sm font-semibold mb-3">本期金额预览</h3>
-                {previewLoading ? (
-                  <p className="text-sm text-gray-500">计算中...</p>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                    <div><p className="text-xs text-gray-500">本期完成金额</p><p className="font-bold">{num(preview.gross_completed_amount)}</p></div>
-                    <div><p className="text-xs text-gray-500">本期保留款</p><p className="font-bold text-red-600">-{num(preview.retention_held_amount)}</p></div>
-                    <div><p className="text-xs text-gray-500">本期释放保留款</p><p className="font-bold text-green-600">{num(preview.retention_released_amount)}</p></div>
-                    <div><p className="text-xs text-gray-500">本期扣款</p><p className="font-bold text-red-600">-{num(preview.deduction_amount)}</p></div>
-                    <div><p className="text-xs text-gray-500">本期未税可开票金额</p><p className="font-bold">{num(preview.taxable_amount)}</p></div>
-                    <div><p className="text-xs text-gray-500">税额</p><p className="font-bold">{num(preview.tax_amount)}</p></div>
-                    <div><p className="text-xs text-blue-600">含税发票金额</p><p className="text-lg font-bold text-blue-700">{num(preview.invoice_amount)}</p></div>
-                  </div>
+        <Card className={selectedContract ? '' : 'opacity-60 pointer-events-none'}>
+          <CardHeader title="输入数量" actions={<span className="text-xs text-slate-400">步骤 4</span>} />
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>项次</th>
+                  <th>项目名称</th>
+                  <th>单位</th>
+                  <th className="num">合同数量</th>
+                  <th className="num">合同单价</th>
+                  <th className="num">本期数量</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.filter(i => i.is_billable && !i.is_heading).map(item => {
+                  const line = lines.find(l => l.itemId === item.id);
+                  return (
+                    <tr key={item.id}>
+                      <td className="font-mono text-slate-500">{item.line_no}</td>
+                      <td>{item.source_description}</td>
+                      <td>{item.unit || '—'}</td>
+                      <td className="num">{formatNumber(item.contract_quantity)}</td>
+                      <td className="num">{formatMoney(item.unit_price)}</td>
+                      <td className="num">
+                        <input
+                          type="number"
+                          step="0.0001"
+                          value={line?.qty || ''}
+                          onChange={e => {
+                            const newLines = [...lines];
+                            const existing = newLines.findIndex(l => l.itemId === item.id);
+                            if (existing >= 0) newLines[existing].qty = e.target.value;
+                            else newLines.push({ itemId: item.id, qty: e.target.value });
+                            setLines(newLines);
+                          }}
+                          className="w-28 px-2 py-1 text-right border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-mono tabular-nums"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
+                      {selectedContract ? '该合同无可计价项目' : '请先选择合同'}
+                    </td>
+                  </tr>
                 )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="金额预览" actions={<span className="text-xs text-slate-400">实时计算</span>} />
+          <div className="card-body">
+            {!preview && !previewLoading && (
+              <p className="text-sm text-slate-400 text-center py-4">填写本期数量后将自动计算金额</p>
+            )}
+            {previewLoading && (
+              <p className="text-sm text-slate-400 text-center py-4">计算中...</p>
+            )}
+            {preview && !previewLoading && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
+                {previewBuckets.map(b => (
+                  <div key={b.label} className={b.emphasis ? 'col-span-2 md:col-span-1 bg-orange-50 -mx-2 px-3 py-2 rounded-md' : ''}>
+                    <p className="text-xs text-slate-500">{b.label}</p>
+                    <p className={`mt-0.5 font-mono tabular-nums text-right ${b.emphasis ? 'text-lg font-bold text-orange-600' : 'text-sm font-semibold text-slate-800'}`}>
+                      {b.value}
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
+          </div>
+        </Card>
 
-            <button onClick={handleCreate} disabled={!appNo} className="rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50">提交请款</button>
-          </>
-        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            onClick={handleCreate}
+            disabled={!appNo || !selectedContract || submitting}
+            className="btn-primary"
+          >
+            {submitting ? '提交中...' : '提交请款'}
+          </button>
+        </div>
       </div>
     </main>
   );
