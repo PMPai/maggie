@@ -237,6 +237,53 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 
 ---
 
+## Phase 3 新增服务 (Phase 3 Services)
+
+### 报表系统 (`app/api/reports.py`)
+9 个 API 端点，基于 8 个 PostgreSQL 视图（迁移 015）：
+
+| 端点 | 视图 | 说明 |
+|---|---|---|
+| `GET /api/reports/contract-item-balances` | `v_contract_item_balances` | 合同项目可用量 vs 已请款量 |
+| `GET /api/reports/project-summary` | `v_project_commercial_summary` | 项目商业汇总（合同金额、已开票、保留款） |
+| `GET /api/reports/retention-balances` | `v_retention_balances` | 保留款余额（HOLD - RELEASE） |
+| `GET /api/reports/uninvoiced` | `v_uninvoiced_approved_amounts` | 已过账未开票金额 |
+| `GET /api/reports/invoice-outstanding` | `v_invoice_outstanding` | 发票未清金额 |
+| `GET /api/reports/collection-variances` | `v_collection_variances` | 发票 vs 收款差异 |
+| `GET /api/reports/cost-margin` | `v_cost_margin_analysis` | 成本毛利分析 |
+| `GET /api/reports/pending-exceptions` | `v_pending_exceptions` | 待处理异常（变更/映射/扣款/差异） |
+| `GET /api/reports/audit-log` | `audit_logs` 表 | 审计日志（最近 100 条） |
+
+### OCR 适配器 (`app/services/ocr/adapter.py`)
+- `OCRAdapter` — Stub 实现，返回空结果（`is_available()=False`）。
+- 接入 Tesseract/PaddleOCR/云 OCR 后替换 stub，不影响其他模块。
+- `import_reference.py` 调用 OCR 适配器扫描参考文件。
+
+### 备份一致性检查器 (`scripts/backup_check.py`)
+6 项 DB 完整性检查：
+
+| 检查 | 说明 |
+|---|---|
+| 已过账请款有保留款分录 | POSTED 且 gross>0 的请款必须有 HOLD 分录 |
+| 发票金额约束 | `amount_ex_tax + tax_amount = amount_inc_tax` |
+| 合同版本金额约束 | 同上 |
+| 无孤立请款明细行 | 所有 application_lines 必须有有效 payment_application_id |
+| 保留款余额非负 | 每个合同的 retention balance 不应为负 |
+| 无重复发票号 | 同一合同内 invoice_no 唯一 |
+
+### 速率限制中间件 (`app/security/rate_limit.py`)
+- `RateLimitMiddleware` — 内存滑动窗口限流。
+- 登录：5 次失败/分钟/IP（超限返回 429）。
+- API：100 次请求/分钟/IP。
+- 注册于 `app/main.py`，在 `SecurityHeadersMiddleware` 之后。
+
+### 文档模板管理 (`app/models/template.py`)
+- `DocumentTemplate` — 客户级模板（BILLING/INVOICE），含生效日期、版本。
+- `GeneratedDocument` — 生成的 PDF/Excel 文档，关联请款单和模板，区分草稿/最终版。
+- 迁移 016 创建对应表。
+
+---
+
 ## 前端架构
 
 ### 设计系统 (Design System)
@@ -292,6 +339,8 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
   - `/projects/[id]/invoices`（发票与收款 — 双卡片并排 + 差异栏位）
   - `/projects/[id]/catalog`（标准项目目录）
   - `/projects/[id]/mapping`（映射审批）
+  - `/reports`（报表中心 — 7 种 DB 视图报表，侧边栏选择 + 数据表展示）
+  - `/audit`（审计日志 — 追加只读，最近 100 条操作记录）
 - **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/api/*`。
 - **认证**：cookie-based，`credentials: 'include'` 自动携带。
 - **原则**：前端不做任何业务计算，所有计算结果来自 API。

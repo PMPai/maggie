@@ -2,6 +2,8 @@
 
 Engineering Contract & Payment Application Management System — a multi-project, multi-role billing platform for construction firms. Handles contracts with versioned line items, progress payment applications, retention ledgers, variations, deductions, approvals, idempotent posting, invoice/collection tracking, standard item matching, optional LLM semantic matching, and PDF/Excel document generation.
 
+> **项目状态**：Phase 1 + 2 + 3 全部完成 · 16 个数据库迁移 · 52 项测试通过（覆盖全部 20 项规格测试） · [GitHub 仓库](https://github.com/PMPai/maggie)
+
 ---
 
 ## 1. 系统目的 (System Purpose)

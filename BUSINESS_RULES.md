@@ -300,3 +300,73 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 - **不能**创建标准项目 ID、计算成本、决定转换、自动审批或写入数据库。
 - LLM 失败 → 人工审核回退。
 - 由测试 #17（LLM 输出 schema）验证。
+
+---
+
+## 14. 报表与数据库视图 (Reports & DB Views) — Phase 3
+
+### 8 个 SQL 视图（迁移 015）
+
+| 视图 | 说明 |
+|---|---|
+| `v_contract_item_balances` | 合同项目可用量 vs 已请款量（含变更增量） |
+| `v_project_commercial_summary` | 项目商业汇总：合同金额、已开票、保留款 |
+| `v_retention_balances` | 保留款余额：HOLD - RELEASE - REVERSAL |
+| `v_uninvoiced_approved_amounts` | 已过账未开票金额 |
+| `v_invoice_outstanding` | 发票未清金额 |
+| `v_collection_variances` | 发票 vs 收款差异 |
+| `v_cost_margin_analysis` | 成本毛利分析（需已批准映射 + 标准成本） |
+| `v_pending_exceptions` | 待处理异常：未批准变更/映射/扣款 + 未核销差异 |
+
+### 报表 API
+
+9 个端点位于 `/api/reports/*`，每个端点返回视图的完整行集（支持按 `contract_id` 或 `project_id` 过滤）。审计日志端点直接查询 `audit_logs` 表（最近 100 条）。
+
+### 前端
+
+- `/reports` — 报表中心，侧边栏选择报表类型，数据表展示结果。
+- `/audit` — 审计日志浏览器。
+
+---
+
+## 15. 备份一致性检查 (Backup Consistency) — Phase 3
+
+### 核心原则：DB 完整性可验证
+
+`scripts/backup_check.py` 执行 6 项完整性检查：
+
+| 检查 | 说明 |
+|---|---|
+| 已过账请款有保留款分录 | POSTED 且 gross>0 的请款必须有 HOLD 分录 |
+| 发票金额约束 | `amount_ex_tax + tax_amount = amount_inc_tax`（容差 0.01） |
+| 合同版本金额约束 | 同上 |
+| 无孤立请款明细行 | 所有 application_lines 必须有有效 payment_application_id |
+| 保留款余额非负 | 每个合同的 retention balance 不应为负 |
+| 无重复发票号 | 同一合同内 invoice_no 唯一 |
+
+- 任一检查失败返回非零退出码。
+- 由测试 #20（备份一致性）验证。
+
+### 备份恢复
+
+- **数据库**：`pg_dump` + `psql` 恢复（见 README §11）。
+- **文件存储**：Docker volume `archive` 通过 `tar` 备份/恢复。
+- **一致性**：DB 和文件存储必须在同一备份周期处理。
+
+---
+
+## 16. 文档模板管理 (Document Template Management) — Phase 3
+
+### 数据模型
+
+| 表 | 说明 |
+|---|---|
+| `document_templates` | 客户级模板（BILLING/INVOICE），含生效日期、版本、项目关联 |
+| `generated_documents` | 生成的 PDF/Excel 文档，关联请款单和模板，区分草稿/最终版 |
+
+### 规则
+
+- 每个模板有 `effective_from` / `effective_to` 生效窗口。
+- `GeneratedDocument.is_final` 区分草稿与最终版。
+- 重新生成 = 新版本（`version_no` 递增），**不覆盖已发送版本**。
+- 模板按项目或组织级别管理。

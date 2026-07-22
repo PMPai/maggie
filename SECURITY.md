@@ -226,12 +226,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 ---
 
-## 9. 速率限制 (Rate Limiting)
+## 9. 速率限制 (Rate Limiting) — Phase 3 已实现
 
 ### 登录速率限制
 
 - 登录接口限制尝试频率，防暴力破解。
-- 建议配置：同一 IP 5 次失败/分钟，锁定 15 分钟。
+- **已实现**：同一 IP 5 次失败登录/分钟，超限返回 HTTP 429。
+- 实现位于 `backend/app/security/rate_limit.py` 的 `RateLimitMiddleware`。
+
+### API 速率限制
+
+- 所有 `/api/*` 路径限制 100 次请求/分钟/IP，超限返回 HTTP 429。
+- 使用内存滑动窗口（开发环境），生产环境建议替换为 Redis + `slowapi`。
 
 ### 上传速率限制
 
@@ -239,8 +245,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 ### 实现说明
 
-- Phase 1 通过 FastAPI middleware 实现基础限流。
-- 生产环境建议使用 Redis + `slowapi` 或 API 网关（nginx limit_req）。
+- **Phase 3 已实现**：`RateLimitMiddleware` 注册于 `app/main.py`，在 `SecurityHeadersMiddleware` 之后。
+- 内存滑动窗口：每个 IP 维护请求时间戳列表，清理过期条目后检查计数。
+- 生产环境建议使用 Redis + `slowapi` 或 API 网关（nginx `limit_req`）。
 
 ---
 
@@ -320,3 +327,6 @@ app.add_middleware(
 | 发票收款差异不自动核销 | ✅ | #12 |
 | LLM 输出 schema 验证 | ✅ | #17 |
 | 跨项目数据隔离 | ✅ | #18 |
+| 登录速率限制 (5次/分) | ✅ | — |
+| API 速率限制 (100次/分) | ✅ | — |
+| 备份一致性检查 | ✅ | #20 |
