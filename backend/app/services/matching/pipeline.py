@@ -18,9 +18,9 @@ async def run_pipeline(
     contract_item_text: str,
     org_id,
     db,
-    llm_client=None,
 ) -> MatchingResult:
-    """Full matching pipeline: normalize → alias → rule → fulltext → vector → LLM (optional)."""
+    """Full matching pipeline: normalize → alias → rule → fulltext → vector.
+    LLM ranking is now handled by a separate Celery task (run_llm_match)."""
     normalized = normalize_text(contract_item_text)
 
     # Step 1: exact alias lookup (auto-apply if found)
@@ -44,15 +44,6 @@ async def run_pipeline(
         if c.standard_item.id not in seen:
             seen.add(c.standard_item.id)
             merged.append((c.standard_item, c.score, c.method))
-
-    # Step 3: LLM rank (optional)
-    if llm_client and merged:
-        try:
-            llm_result = await llm_client.rank_candidates(contract_item_text, merged)
-            if llm_result:
-                merged = llm_result
-        except Exception:
-            pass  # LLM failure → human review fallback
 
     merged.sort(key=lambda x: x[1], reverse=True)
     return MatchingResult(candidates=merged[:10], method="RULE")

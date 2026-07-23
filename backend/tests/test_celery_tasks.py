@@ -58,3 +58,12 @@ def test_run_ocr_task_eager_execution():
         assert isinstance(result, dict)
     finally:
         celery_app.conf.task_always_eager = False
+
+
+def test_pipeline_no_longer_calls_llm_inline():
+    """Pipeline should NOT call LLM directly — LLM is now a Celery task."""
+    import inspect
+    from app.services.matching.pipeline import run_pipeline
+    source = inspect.getsource(run_pipeline)
+    sig = inspect.signature(run_pipeline)
+    assert "llm_client" not in sig.parameters, "Pipeline should not accept llm_client parameter"
