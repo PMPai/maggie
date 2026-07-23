@@ -1,9 +1,14 @@
 """OCR adapter factory."""
+from typing import TYPE_CHECKING
+
 from app.services.ocr.protocol import OCRResult, OCRAdapter
 from app.services.ocr.stub import StubOCRAdapter
 
+if TYPE_CHECKING:
+    from app.config import Settings
 
-def get_ocr_adapter(settings) -> OCRAdapter:
+
+def get_ocr_adapter(settings: "Settings") -> OCRAdapter:
     provider = settings.OCR_PROVIDER
     if provider == "tesseract":
         from app.services.ocr.tesseract import TesseractAdapter

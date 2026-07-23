@@ -9,7 +9,7 @@ class OCRResult:
     text: str
     confidence: float
     pages: int
-    bbox_data: list
+    bbox_data: list[dict]
 
 
 class OCRAdapter(Protocol):

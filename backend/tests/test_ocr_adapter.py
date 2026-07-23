@@ -1,7 +1,7 @@
 """OCR adapter tests — protocol, stub, factory."""
 import pytest
 from pathlib import Path
-from app.services.ocr.protocol import OCRResult, OCRAdapter
+from app.services.ocr.protocol import OCRResult
 from app.services.ocr.stub import StubOCRAdapter
 
 
@@ -34,3 +34,22 @@ def test_get_ocr_adapter_returns_stub_by_default():
     settings = get_settings()
     adapter = get_ocr_adapter(settings)
     assert isinstance(adapter, StubOCRAdapter)
+
+
+def test_get_ocr_adapter_returns_tesseract_when_configured():
+    from app.services.ocr import get_ocr_adapter
+    from app.services.ocr.tesseract import TesseractAdapter
+    from app.config import Settings
+    settings = Settings(OCR_PROVIDER="tesseract")
+    adapter = get_ocr_adapter(settings)
+    assert isinstance(adapter, TesseractAdapter)
+
+
+def test_get_ocr_adapter_returns_cloud_when_configured():
+    from app.services.ocr import get_ocr_adapter
+    from app.services.ocr.cloud import CloudOCRAdapter
+    from app.config import Settings
+    settings = Settings(OCR_PROVIDER="cloud", OCR_CLOUD_ENDPOINT="https://ocr.example.com", OCR_CLOUD_API_KEY="key")
+    adapter = get_ocr_adapter(settings)
+    assert isinstance(adapter, CloudOCRAdapter)
+
