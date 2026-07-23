@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    OCR_PROVIDER: str = "none"
+    OCR_TESSERACT_LANG: str = "chi_sim+eng"
+    OCR_CLOUD_API_KEY: str = ""
+    OCR_CLOUD_ENDPOINT: str = ""
 
     class Config:
         env_file = ".env"
