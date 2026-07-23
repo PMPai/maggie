@@ -225,3 +225,20 @@ async def list_applications(project_id: str = Query(...), current: CurrentUser =
         retention_released_amount=a.retention_released_amount, deduction_amount=a.deduction_amount,
         taxable_amount=a.taxable_amount, tax_amount=a.tax_amount, invoice_amount=a.invoice_amount,
     ) for a in result.scalars().all()]
+
+
+@router.post("/{app_id}/generate")
+async def generate_document_endpoint(app_id: str, output_format: str = "pdf", current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    aid = uuid.UUID(app_id)
+    result = await db.execute(select(PaymentApplication).where(PaymentApplication.id == aid))
+    app = result.scalar_one_or_none()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    await require_project_member(app.project_id, current, db)
+
+    if app.status != ApplicationStatus.POSTED and app.status != ApplicationStatus.GENERATED:
+        raise HTTPException(status_code=400, detail="Application must be POSTED to generate document")
+
+    from app.tasks.tasks import generate_document
+    task = generate_document.delay(str(aid), output_format)
+    return {"task_id": task.id, "status": "PENDING"}
