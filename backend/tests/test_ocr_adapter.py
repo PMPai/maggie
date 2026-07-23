@@ -45,6 +45,18 @@ def test_get_ocr_adapter_returns_tesseract_when_configured():
     assert isinstance(adapter, TesseractAdapter)
 
 
+def test_cloud_adapter_not_available_without_config():
+    from app.services.ocr.cloud import CloudOCRAdapter
+    adapter = CloudOCRAdapter(endpoint="", api_key="")
+    assert adapter.is_available() is False
+
+
+def test_cloud_adapter_available_with_config():
+    from app.services.ocr.cloud import CloudOCRAdapter
+    adapter = CloudOCRAdapter(endpoint="https://ocr.example.com", api_key="key123")
+    assert adapter.is_available() is True
+
+
 def test_get_ocr_adapter_returns_cloud_when_configured():
     from app.services.ocr import get_ocr_adapter
     from app.services.ocr.cloud import CloudOCRAdapter
