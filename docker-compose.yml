@@ -42,6 +42,7 @@ services:
       - ./backend:/app
       - ./scripts:/app/scripts:ro
       - ./sample-data:/app/sample-data:ro
+      - ./templates:/templates:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   worker:
@@ -59,6 +60,7 @@ services:
       - ./backend:/app
       - ./scripts:/app/scripts:ro
       - ./sample-data:/app/sample-data:ro
+      - ./templates:/templates:ro
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
   frontend:
