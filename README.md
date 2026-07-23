@@ -2,7 +2,7 @@
 
 Engineering Contract & Payment Application Management System — a multi-project, multi-role billing platform for construction firms. Handles contracts with versioned line items, progress payment applications, retention ledgers, variations, deductions, approvals, idempotent posting, invoice/collection tracking, standard item matching, optional LLM semantic matching, and PDF/Excel document generation.
 
-> **项目状态**：Phase 1 + 2 + 3 全部完成 · 16 个数据库迁移 · 52 项测试通过（覆盖全部 20 项规格测试） · [GitHub 仓库](https://github.com/PMPai/maggie)
+> **项目状态**：Phase 1 + 2 + 3 + A 全部完成 · 16 个数据库迁移 · 70 项测试通过（含 PDF 生成集成测试） · Celery Worker + Tesseract OCR + Playwright PDF · [GitHub 仓库](https://github.com/PMPai/maggie)
 
 ---
 
@@ -361,12 +361,12 @@ docker compose run --rm api python scripts/import_reference.py --dir /path/to/re
 
 ## 14. 已知限制 (Known Limitations)
 
-Phase 1 + Phase 2 + Phase 3 已全部实现。以下为已知限制及后续优化方向：
+Phase 1 + Phase 2 + Phase 3 + Phase A 已全部实现。以下为已知限制及后续优化方向：
 
 | 功能 | Phase | 状态 | 说明 |
 |---|---|---|---|
-| OCR 文字识别 | 3 | ✅ Stub 实现 | OCR 适配器已创建，返回空结果。接入 Tesseract/云 OCR 后启用 |
-| LLM 语义匹配 | 2 | ✅ 已实现 | 标准项目智能映射（Stub + OpenAI 兼容） |
+| OCR 文字识别 | A | ✅ Tesseract 已实现 | Tesseract 5.5.0 + chi_sim，支持 PDF/图片，可配置切换云 OCR |
+| LLM 语义匹配 | 2 | ✅ 已实现 | 标准项目智能映射（Stub + OpenAI 兼容），LLM 排序现为 Celery 异步任务 |
 | 变更单 (Variations) | 2 | ✅ 已实现 | 合同变更全额台账 |
 | 保留款完整台账 | 2 | ✅ 已实现 | HOLD/RELEASE/ADJUSTMENT/REVERSAL 完整分类账 |
 | 扣款完整台账 | 2 | ✅ 已实现 | 多类型扣款 + 税务处理 |
@@ -380,9 +380,9 @@ Phase 1 + Phase 2 + Phase 3 已全部实现。以下为已知限制及后续优�
 | 客户模板管理 | 3 | ✅ 已实现 | document_templates + generated_documents 模型 (迁移 016) |
 | Mermaid ERD | 3 | ✅ 已实现 | docs/ERD.md |
 | 数据字典 | 3 | ✅ 已实现 | docs/DATA_DICTIONARY.md |
-| E2E 测试 | 3 | 待实现 | Playwright E2E 需修复 Docker 内 Playwright 安装 |
-| Celery Worker | 3 | 待实现 | 需创建 app.tasks.celery_app stub |
-| PDF 生成 (Docker) | 3 | 待修复 | Playwright 1.49 在 Debian 12 字体包兼容问题 |
+| Celery Worker | A | ✅ 已实现 | 3 个异步任务：PDF 生成、OCR、LLM 匹配 |
+| PDF 生成 (Docker) | A | ✅ 已修复 | Playwright + 手动字体安装（fonts-noto-cjk + 18 个 host 库） |
+| E2E 测试 | C | 待实现 | Playwright E2E 浏览器测试（Phase C） |
 
 ---
 

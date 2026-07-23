@@ -2,7 +2,7 @@
 
 > **用途**：持久化项目上下文和决策记录，避免每次会话从原始代码重新探索。
 > **更新规则**：每次做出新的决策或完成变更后，必须同步更新此文档。
-> **最后更新**：2026-07-23
+> **最后更新**：2026-07-24 — Phase A 完成
 
 ---
 
@@ -139,8 +139,10 @@ frontend/app/
 
 ## 5. 当前工作：Phase A — 后端关键缺口补齐
 
-> **状态**：设计中（brainstorming 进行中）
-> **范围**：A1 Celery + A2 PDF 修复 + A3 OCR，三项一起做
+> **状态**：✅ 已完成（2026-07-24）
+> **范围**：A1 Celery + A2 PDF 修复 + A3 OCR，三项一起完成
+> **分支**：`phase-a-celery-pdf-ocr`（11 commits）
+> **测试**：70 passed, 0 failed, 0 skipped（52 原有 + 18 新增）
 
 ### 5.1 已确认的决策
 
@@ -250,22 +252,64 @@ OCR_CLOUD_ENDPOINT: str = ""
 
 - [x] Spec 已写入并审核通过
 - [x] 实现计划已写入：`docs/superpowers/plans/2026-07-23-phase-a-celery-pdf-ocr.md`
-- [ ] 实现未开始（10 个 Task, TDD 方式）
+- [x] 10 个 Task 全部完成（TDD 方式）
 
-### 5.6 实现计划概要
+### 5.6 实现结果
 
-| Task | 内容 | 文件数 |
-|------|------|--------|
-| 1 | Config + OCR Protocol + Stub | 5 |
-| 2 | Tesseract Adapter | 2 |
-| 3 | Cloud OCR Stub | 2 |
-| 4 | Celery App | 3 |
-| 5 | Celery Tasks (3 个任务) | 2 |
-| 6 | Task Status API + Generate Endpoint | 4 |
-| 7 | Matching Pipeline 重构 | 3 |
-| 8 | Docker + 依赖 | 4 |
-| 9 | PDF 集成测试 | 1 |
-| 10 | 全面验证 | 0 |
+| 组件 | 状态 | 验证 |
+|------|------|------|
+| Celery Worker | ✅ 运行中 | `celery@... ready` in worker logs |
+| PDF 生成 (Playwright) | ✅ 可用 | 2 integration tests pass, Chinese font rendering |
+| OCR (Tesseract) | ✅ 可用 | tesseract 5.5.0, test_tesseract_extract_from_image passes |
+| OCR (Cloud stub) | ✅ 可用 | CloudOCRAdapter stub with httpx |
+| Task Status API | ✅ 可用 | `GET /api/tasks/{task_id}/status` |
+| Generate Endpoint | ✅ 可用 | `POST /payment-applications/{id}/generate` |
+| Matching Pipeline | ✅ 重构 | LLM 移至 Celery task, pipeline 仅做 alias/rule/fulltext/vector |
+
+### 5.7 新增文件
+
+```
+backend/app/tasks/
+├── __init__.py          # exports celery_app
+├── celery_app.py        # Celery instance + config
+└── tasks.py             # 3 tasks: generate_document, run_ocr, run_llm_match
+
+backend/app/services/ocr/
+├── __init__.py           # get_ocr_adapter() factory
+├── protocol.py           # OCRResult + OCRAdapter Protocol
+├── stub.py               # StubOCRAdapter
+├── tesseract.py          # TesseractAdapter (pytesseract + pdf2image)
+└── cloud.py              # CloudOCRAdapter (httpx, for future cloud OCR)
+
+backend/app/api/tasks.py   # Task status API
+backend/tests/test_celery_tasks.py
+backend/tests/test_ocr_adapter.py
+backend/tests/test_task_api.py
+backend/tests/test_pdf_docker.py
+```
+
+### 5.8 关键修复
+
+1. **Playwright host deps**: 不用 `--with-deps`（Debian 12 字体包不存在），手动安装 18 个库（libdbus-1-3, libatk1.0-0, libnss3 等）
+2. **模板路径**: `templates/` 目录在 backend build context 外，通过 docker-compose volume mount 解决
+3. **Celery tasks engine.dispose()**: 使用 try/finally 确保 SQLAlchemy async engine 正确释放
+4. **ApplicationStatus 枚举**: 不是字符串比较，使用 `ApplicationStatus.POSTED` 枚举值
+
+### 5.9 Commits
+
+```
+561bddc test: PDF generation integration test with Playwright (Phase A)
+6b26abc feat: Docker worker service + Playwright fonts + Tesseract OCR (Phase A)
+aa95cb1 refactor: move LLM matching from inline to Celery task (Phase A)
+60b7471 feat: task status API + document generation endpoint (Phase A)
+54e41b4 feat: Celery tasks for PDF generation, OCR, and LLM matching (Phase A)
+e8c172b feat: Celery app instance with Redis broker (Phase A)
+5413ccb feat: Cloud OCR adapter stub for future cloud API integration (Phase A)
+061b243 feat: Tesseract OCR adapter with PDF and image support (Phase A)
+f86b58a fix: address code review — remove unused import, add factory tests, type hints (Phase A)
+b23191b feat: OCR adapter protocol + stub + factory (Phase A)
+83f2887 docs: Phase A spec, plan, and memory.md
+```
 
 ---
 
