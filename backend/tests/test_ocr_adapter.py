@@ -53,3 +53,32 @@ def test_get_ocr_adapter_returns_cloud_when_configured():
     adapter = get_ocr_adapter(settings)
     assert isinstance(adapter, CloudOCRAdapter)
 
+
+def test_tesseract_adapter_available_check():
+    """TesseractAdapter.is_available() checks for tesseract binary."""
+    from app.services.ocr.tesseract import TesseractAdapter
+    adapter = TesseractAdapter(lang="chi_sim+eng")
+    assert isinstance(adapter.is_available(), bool)
+
+
+@pytest.mark.skipif(
+    not __import__("shutil").which("tesseract"),
+    reason="tesseract not installed",
+)
+@pytest.mark.asyncio
+async def test_tesseract_extract_from_image(tmp_path):
+    """Real OCR test — only runs when tesseract is available."""
+    from PIL import Image, ImageDraw
+    from app.services.ocr.tesseract import TesseractAdapter
+
+    img = Image.new("RGB", (200, 50), color="white")
+    draw = ImageDraw.Draw(img)
+    draw.text((10, 10), "Hello 123", fill="black")
+    img_path = tmp_path / "test.png"
+    img.save(img_path)
+
+    adapter = TesseractAdapter(lang="eng")
+    result = await adapter.extract(img_path, mime_type="image/png")
+    assert result.pages == 1
+    assert "Hello" in result.text or "123" in result.text
+
