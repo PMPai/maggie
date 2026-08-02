@@ -168,21 +168,23 @@ async def patch_contract_version(version_id: str, req: ContractVersionPatch, cur
 
     updates = req.model_dump(exclude_unset=True)
     if any(k in updates for k in ("amount_ex_tax", "tax_amount", "amount_inc_tax")):
-        ex = updates.get("amount_ex_tax", cv.amount_ex_tax)
-        tax = updates.get("tax_amount", cv.tax_amount)
-        inc = updates.get("amount_inc_tax", cv.amount_inc_tax)
+        ex = Decimal(updates.get("amount_ex_tax", cv.amount_ex_tax))
+        tax = Decimal(updates.get("tax_amount", cv.tax_amount))
+        inc = Decimal(updates.get("amount_inc_tax", cv.amount_inc_tax))
         if ex + tax != inc:
             raise HTTPException(status_code=422, detail="amount_ex_tax + tax_amount must equal amount_inc_tax")
 
+    applied_fields = []
     for field, value in updates.items():
         if hasattr(cv, field):
             setattr(cv, field, value)
+            applied_fields.append(field)
     cv.updated_by = current.user.id
 
     db.add(AuditLog(
         organization_id=current.organization_id, user_id=current.user.id,
         resource_type="contract_version", resource_id=str(vid),
-        action="PATCH", detail={"version_no": cv.version_no, "fields": list(updates.keys())},
+        action="PATCH", detail={"version_no": cv.version_no, "fields": applied_fields},
     ))
     await db.commit()
     await db.refresh(cv)
