@@ -41,6 +41,7 @@ export interface ContractVersion {
   amount_inc_tax: string;
   status: string;
   change_reason: string | null;
+  source_document_id: string | null;
 }
 
 export interface ContractItem {

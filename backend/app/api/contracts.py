@@ -60,6 +60,23 @@ async def list_contracts(project_id: str = Query(...), current: CurrentUser = De
     ) for c in contracts]
 
 
+@router.get("/{contract_id}", response_model=ContractResponse)
+async def get_contract(contract_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    cid = uuid.UUID(contract_id)
+    result = await db.execute(select(Contract).where(Contract.id == cid, Contract.deleted_at.is_(None)))
+    c = result.scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    await require_project_member(c.project_id, current, db)
+    return ContractResponse(
+        id=str(c.id), project_id=str(c.project_id), external_contract_no=c.external_contract_no,
+        contract_name=c.contract_name, currency=c.currency, tax_mode=c.tax_mode, tax_rate=c.tax_rate,
+        original_amount_ex_tax=c.original_amount_ex_tax, original_tax_amount=c.original_tax_amount,
+        original_amount_inc_tax=c.original_amount_inc_tax, status=c.status,
+        active_version_id=str(c.active_version_id) if c.active_version_id else None,
+    )
+
+
 @router.post("/{contract_id}/versions", response_model=ContractVersionResponse)
 async def create_version(contract_id: str, req: ContractVersionCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     cid = uuid.UUID(contract_id)
@@ -86,6 +103,7 @@ async def create_version(contract_id: str, req: ContractVersionCreate, current: 
         version_type=version.version_type, amount_ex_tax=version.amount_ex_tax,
         tax_amount=version.tax_amount, amount_inc_tax=version.amount_inc_tax,
         status=version.status, change_reason=version.change_reason,
+        source_document_id=str(version.source_document_id) if version.source_document_id else None,
     )
 
 
@@ -105,6 +123,7 @@ async def list_versions(contract_id: str, current: CurrentUser = Depends(get_cur
         id=str(v.id), contract_id=str(v.contract_id), version_no=v.version_no,
         version_type=v.version_type, amount_ex_tax=v.amount_ex_tax, tax_amount=v.tax_amount,
         amount_inc_tax=v.amount_inc_tax, status=v.status, change_reason=v.change_reason,
+        source_document_id=str(v.source_document_id) if v.source_document_id else None,
     ) for v in versions]
 
 
@@ -151,6 +170,7 @@ async def approve_version(contract_id: str, version_id: str, current: CurrentUse
         id=str(version.id), contract_id=str(version.contract_id), version_no=version.version_no,
         version_type=version.version_type, amount_ex_tax=version.amount_ex_tax, tax_amount=version.tax_amount,
         amount_inc_tax=version.amount_inc_tax, status=version.status, change_reason=version.change_reason,
+        source_document_id=str(version.source_document_id) if version.source_document_id else None,
     )
 
 
@@ -193,6 +213,7 @@ async def patch_contract_version(version_id: str, req: ContractVersionPatch, cur
         version_type=cv.version_type, amount_ex_tax=cv.amount_ex_tax,
         tax_amount=cv.tax_amount, amount_inc_tax=cv.amount_inc_tax,
         status=cv.status, change_reason=cv.change_reason,
+        source_document_id=str(cv.source_document_id) if cv.source_document_id else None,
     )
 
 

@@ -53,6 +53,7 @@ class ContractVersionResponse(BaseModel):
     amount_inc_tax: Decimal
     status: str
     change_reason: str | None
+    source_document_id: str | None = None
 
 
 class ContractVersionPatch(BaseModel):
