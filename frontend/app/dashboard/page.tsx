@@ -7,6 +7,9 @@ import Link from 'next/link';
 import { PageHeader, StatCard, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+
+const PIE_COLORS = ['#F97316', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#F59E0B', '#06B6D4', '#EF4444'];
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -47,6 +50,13 @@ export default function DashboardPage() {
       ]
     : [];
 
+  const pieData = summary?.per_project.map(p => ({ name: p.code, value: parseFloat(p.contract_amount) || 0 })) || [];
+  const barData = summary?.per_project.map(p => ({
+    name: p.code,
+    '合同金额': parseFloat(p.contract_amount) || 0,
+    '累计请款': parseFloat(p.approved_total) || 0,
+  })) || [];
+
   return (
     <div>
       <PageHeader
@@ -68,6 +78,41 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {summary && pieData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <Card>
+            <CardHeader title="项目合同金额分布" />
+            <div className="card-body" style={{ height: 320 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={(e: any) => e.name}>
+                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => formatMoney(v)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+          <Card>
+            <CardHeader title="项目合同金额 vs 累计请款" />
+            <div className="card-body" style={{ height: 320 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} />
+                  <Tooltip formatter={(v: any) => formatMoney(v)} />
+                  <Legend />
+                  <Bar dataKey="合同金额" fill="#3B82F6" />
+                  <Bar dataKey="累计请款" fill="#F97316" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+      )}
 
       <Card>
         <CardHeader title="项目列表" />

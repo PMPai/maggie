@@ -48,6 +48,7 @@ export default function ApprovalsPage() {
   const [filterType, setFilterType] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [confirm, setConfirm] = useState<{ kind: 'approve' | 'reject'; item: PendingApproval } | null>(null);
+  const [viewItem, setViewItem] = useState<PendingApproval | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -168,9 +169,12 @@ export default function ApprovalsPage() {
                           </button>
                         )}
                         {it.detail_url && (
-                          <Link href={it.detail_url} className="text-blue-600 text-sm hover:underline">
+                          <button
+                            onClick={() => setViewItem(it)}
+                            className="text-blue-600 text-sm hover:underline"
+                          >
                             查看
-                          </Link>
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -181,6 +185,48 @@ export default function ApprovalsPage() {
           )}
         </div>
       </Card>
+      {viewItem && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setViewItem(null)}>
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-slate-800">审批详情</h3>
+              <button onClick={() => setViewItem(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between"><dt className="text-slate-500">类型</dt><dd><StatusBadge status={viewItem.resource_type} /></dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">描述</dt><dd className="text-slate-800">{viewItem.description}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">项目</dt><dd className="text-slate-800">{viewItem.project_code || '—'}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">金额</dt><dd className="num text-slate-800">{viewItem.amount ? formatMoney(viewItem.amount) : '—'}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">等待角色</dt><dd className="text-slate-800">{ROLE_LABELS[viewItem.waiting_for_role] || viewItem.waiting_for_role}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">创建时间</dt><dd className="text-slate-800">{viewItem.created_at?.substring(0, 16).replace('T', ' ') || '—'}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">资源ID</dt><dd className="font-mono text-xs text-slate-600">{viewItem.resource_id.substring(0, 8)}…</dd></div>
+            </dl>
+            <div className="mt-5 flex gap-2 justify-end">
+              {viewItem.detail_url && (
+                <Link href={viewItem.detail_url} className="btn-secondary text-sm" onClick={() => setViewItem(null)}>
+                  前往详情页 →
+                </Link>
+              )}
+              {viewItem.approve_url && (
+                <button
+                  className="btn-primary text-sm"
+                  onClick={() => { setConfirm({ kind: 'approve', item: viewItem }); setViewItem(null); }}
+                >
+                  批准
+                </button>
+              )}
+              {viewItem.reject_url && (
+                <button
+                  className="btn-secondary text-sm text-red-600"
+                  onClick={() => { setConfirm({ kind: 'reject', item: viewItem }); setViewItem(null); }}
+                >
+                  拒绝
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {confirm && (
         <ConfirmDialog
           title={confirm.kind === 'approve' ? '确认批准' : '确认拒绝'}

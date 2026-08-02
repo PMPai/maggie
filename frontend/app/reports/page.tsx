@@ -43,6 +43,67 @@ const MONEY_HINTS = [
   'retention_balance', 'collected_amount', 'expected_margin',
 ];
 
+const COLUMN_LABELS: Record<string, string> = {
+  project_id: '项目ID', project_code: '项目编号', project_name: '项目名称',
+  contract_id: '合同ID', contract_no: '合同编号', contract_name: '合同名称',
+  contract_value: '合同金额', contract_amount: '合同金额',
+  org_id: '组织ID', organization_id: '组织ID',
+  gross_completed: '累计完成金额', gross_completed_amount: '累计完成金额',
+  invoiced_to_date: '已开票金额', invoiced_amount: '已开票金额',
+  collected_amount: '已收款金额', received: '已收款',
+  retention_held: '保留款', retention_balance: '保留款余额',
+  total_held: '保留款合计', total_released: '已释放保留款', total_adjustment: '调整合计',
+  outstanding_amount: '未清金额', uninvoiced_amount: '未开票金额',
+  variance: '差异', expected: '预计', linked_amount: '已关联金额',
+  standard_cost: '标准成本', margin: '毛利', expected_margin: '预计毛利',
+  amount_inc_tax: '含税金额', amount_ex_tax: '未税金额', tax_amount: '税额',
+  unit_price: '单价', line_amount: '行金额', completed_amount: '完成金额',
+  claimed_amount: '已请款金额', allocated_amount: '已分配金额',
+  status: '状态', exception_status: '异常状态',
+  remaining_quantity: '剩余数量', contract_quantity: '合同数量',
+  cumulative_quantity: '累计数量', approved_quantity: '批准数量',
+  item_code: '项目编码', description: '描述', source_description: '原始描述',
+  unit: '单位', line_no: '项次', calculation_method: '计算方式',
+  variation_no: '变更编号', variation_type: '变更类型',
+  deduction_no: '扣款编号', deduction_type: '扣款类型',
+  invoice_no: '发票号码', invoice_date: '发票日期',
+  receipt_no: '收款编号', receipt_date: '收款日期',
+  payment_method: '付款方式', entry_type: '台账类型',
+  application_no: '请款编号', period_no: '期数',
+  mapping_type: '映射类型', match_method: '匹配方式',
+  confidence: '置信度', review_type: '审核类型',
+  action: '操作', created_at: '创建时间', updated_at: '更新时间',
+  effective_date: '生效日期', approved_at: '批准时间',
+  cost_per_unit: '单位成本', total_unit_cost: '单位总成本',
+  margin_pct: '毛利率', category: '类别', subcategory: '子类',
+};
+
+function labelFor(col: string): string {
+  return COLUMN_LABELS[col] || col.replace(/_/g, ' ');
+}
+
+function exportCSV(filename: string, rows: Record<string, any>[]) {
+  if (rows.length === 0) return;
+  const cols = Object.keys(rows[0]);
+  const header = cols.map(labelFor).join(',');
+  const body = rows.map(row =>
+    cols.map(col => {
+      const v = row[col];
+      if (v === null || v === undefined) return '';
+      const s = String(v).replace(/"/g, '""');
+      return /[",\n]/.test(s) ? `"${s}"` : s;
+    }).join(',')
+  ).join('\n');
+  const csv = '\uFEFF' + header + '\n' + body;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const PAGE_SIZE = 50;
 
 export default function ReportsPage() {
@@ -121,7 +182,19 @@ export default function ReportsPage() {
           <Card>
             <CardHeader
               title={activeEntry?.label || ''}
-              actions={<span className="text-xs text-slate-400">{data.length} 条记录</span>}
+              actions={
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400">{data.length} 条记录</span>
+                  {!activeEntry?.comingSoon && data.length > 0 && (
+                    <button
+                      onClick={() => exportCSV(`${activeReport}.csv`, data)}
+                      className="btn-secondary text-sm px-3 py-1.5"
+                    >
+                      导出 Excel
+                    </button>
+                  )}
+                </div>
+              }
             />
             {activeEntry?.comingSoon ? (
               <EmptyState message="该报表待后端视图实现（Phase C+）" />
@@ -152,7 +225,7 @@ export default function ReportsPage() {
                       <thead>
                         <tr>
                           {columns.map((col) => (
-                            <th key={col}>{col}</th>
+                            <th key={col}>{labelFor(col)}</th>
                           ))}
                         </tr>
                       </thead>
