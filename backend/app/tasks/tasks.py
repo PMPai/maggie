@@ -133,22 +133,32 @@ def run_ocr(self, document_id: str) -> dict:
                     return {"error": "Document not found"}
 
                 file_path = await get_file_path(doc, db)
-                ocr_result = await adapter.extract(file_path, doc.mime_type)
-
-                await db.execute(
-                    update(Document).where(Document.id == did).values(
-                        ocr_status="COMPLETED",
+                try:
+                    ocr_result = await adapter.extract(file_path, doc.mime_type)
+                    await db.execute(
+                        update(Document).where(Document.id == did).values(
+                            ocr_status="COMPLETED",
+                            ocr_text=ocr_result.text,
+                        )
                     )
-                )
+                    payload = {
+                        "document_id": document_id,
+                        "ocr_status": "COMPLETED",
+                        "text_length": len(ocr_result.text),
+                        "pages": ocr_result.pages,
+                        "confidence": ocr_result.confidence,
+                    }
+                except Exception:
+                    await db.execute(
+                        update(Document).where(Document.id == did).values(
+                            ocr_status="FAILED",
+                            ocr_text=None,
+                        )
+                    )
+                    payload = {"document_id": document_id, "ocr_status": "FAILED", "error": "OCR extract failed"}
                 await db.commit()
 
-                return {
-                    "document_id": document_id,
-                    "ocr_status": "COMPLETED",
-                    "text_length": len(ocr_result.text),
-                    "pages": ocr_result.pages,
-                    "confidence": ocr_result.confidence,
-                }
+                return payload
         finally:
             await engine.dispose()
 
