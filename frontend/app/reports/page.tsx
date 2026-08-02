@@ -1,6 +1,7 @@
 'use client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { PageHeader, Card, CardHeader, EmptyState, StatusBadge, formatMoney } from '@/components/ui/common';
 
@@ -46,7 +47,12 @@ const PAGE_SIZE = 50;
 
 export default function ReportsPage() {
   const { user, loading } = useAuth();
-  const [activeReport, setActiveReport] = useState<ReportKey>('project-summary');
+  const searchParams = useSearchParams();
+  const knownReportKeys = reports.map(r => r.key);
+  const [activeReport, setActiveReport] = useState<ReportKey>(() => {
+    const r = searchParams.get('report');
+    return r && knownReportKeys.includes(r as ReportKey) ? (r as ReportKey) : 'project-summary';
+  });
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [page, setPage] = useState(1);
