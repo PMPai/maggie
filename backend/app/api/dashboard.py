@@ -25,6 +25,16 @@ def _dec(v) -> str:
     return str(v) if v is not None else "0"
 
 
+def _empty_summary(recent_audit: list) -> dict:
+    return {
+        "total_contract_amount": "0", "gross_completed_total": "0", "approved_total": "0",
+        "invoiced_total": "0", "collected_total": "0", "retention_held_total": "0",
+        "invoice_outstanding_total": "0", "pending_variations": 0, "pending_applications": 0,
+        "pending_mappings": 0, "overclaim_exceptions": 0, "contract_version_diffs": 0,
+        "per_project": [], "recent_audit": recent_audit,
+    }
+
+
 async def _accessible_project_ids(current: CurrentUser, db: AsyncSession) -> list[uuid.UUID]:
     if UserRoleEnum.SYSTEM_ADMIN in current.roles:
         result = await db.execute(
@@ -50,14 +60,25 @@ async def get_summary(
 ):
     project_ids = await _accessible_project_ids(current, db)
 
-    if not project_ids:
-        return {
-            "total_contract_amount": "0", "gross_completed_total": "0", "approved_total": "0",
-            "invoiced_total": "0", "collected_total": "0", "retention_held_total": "0",
-            "invoice_outstanding_total": "0", "pending_variations": 0, "pending_applications": 0,
-            "pending_mappings": 0, "overclaim_exceptions": 0, "contract_version_diffs": 0,
-            "per_project": [], "recent_audit": [],
+    # Recent audit (org-scoped, last 5) — runs unconditionally so empty-project
+    # users (e.g. SYSTEM_ADMIN with no projects) still see their org's audit trail.
+    audit_rows = (await db.execute(
+        select(AuditLog)
+        .where(AuditLog.organization_id == current.organization_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(5)
+    )).scalars().all()
+    recent_audit = [
+        {
+            "id": str(a.id),
+            "action": a.action,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
         }
+        for a in audit_rows
+    ]
+
+    if not project_ids:
+        return _empty_summary(recent_audit)
 
     contract_ids_subq = select(Contract.id).where(Contract.project_id.in_(project_ids))
 
@@ -193,22 +214,6 @@ async def get_summary(
             "approved_total": _dec(a_amt),
             "retention_held": _dec(0),
         })
-
-    # Recent audit (last 5 for this org)
-    audit_rows = (await db.execute(
-        select(AuditLog)
-        .where(AuditLog.organization_id == current.organization_id)
-        .order_by(AuditLog.created_at.desc())
-        .limit(5)
-    )).scalars().all()
-    recent_audit = [
-        {
-            "id": str(a.id),
-            "action": a.action,
-            "created_at": a.created_at.isoformat() if a.created_at else None,
-        }
-        for a in audit_rows
-    ]
 
     return {
         "total_contract_amount": _dec(total_contract),
