@@ -71,6 +71,19 @@ class ContractVersionPatch(BaseModel):
     tax_amount: Decimal | None = None
     amount_inc_tax: Decimal | None = None
     change_reason: str | None = None
+    status: str | None = None
+
+
+class ContractItemPatch(BaseModel):
+    line_no: str | None = None
+    source_description: str | None = None
+    unit: str | None = None
+    contract_quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    line_amount: Decimal | None = None
+    calculation_method: str | None = None
+    tax_category: str | None = None
+    retention_applicable: bool | None = None
 
 
 class ContractItemCreate(BaseModel):

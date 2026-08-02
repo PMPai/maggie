@@ -38,6 +38,7 @@ export default function ExtractPage() {
   const [confirm, setConfirm] = useState<null | Action>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [editedItemIds, setEditedItemIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (loading || !user) return;
@@ -72,8 +73,13 @@ export default function ExtractPage() {
     return errs;
   };
 
-  const patchItem = (index: number, patch: Partial<ContractItem>) =>
+  const patchItem = (index: number, patch: Partial<ContractItem>) => {
+    const target = items[index];
+    if (target && target.id !== '') {
+      setEditedItemIds(prev => prev.has(target.id) ? prev : new Set(prev).add(target.id));
+    }
     setItems(prev => prev.map((it, i) => i === index ? { ...it, ...patch } : it));
+  };
 
   const recalc = (index: number, qty?: string, price?: string) => {
     const it = items[index];
@@ -104,6 +110,21 @@ export default function ExtractPage() {
           sort_order: updated[i].sort_order,
         });
         updated[i] = created;
+      } else if (updated[i].id !== '' && editedItemIds.has(updated[i].id)) {
+        const patched = await api.patch<ContractItem>(
+          `/contracts/contract-versions/${versionId}/items/${updated[i].id}`,
+          {
+            line_no: updated[i].line_no,
+            source_description: updated[i].source_description,
+            unit: updated[i].unit || null,
+            contract_quantity: updated[i].contract_quantity,
+            unit_price: updated[i].unit_price,
+            line_amount: updated[i].line_amount,
+            calculation_method: updated[i].calculation_method,
+            retention_applicable: updated[i].retention_applicable,
+          },
+        );
+        updated[i] = patched;
       }
     }
     return updated;
@@ -127,15 +148,20 @@ export default function ExtractPage() {
     }
     setBusy(true);
     try {
-      const patched = await api.patch<ContractVersion>(`/contracts/contract-versions/${version.id}`, {
+      const patchBody: Record<string, unknown> = {
         amount_ex_tax: form.amount_ex_tax,
         tax_amount: form.tax_amount,
         amount_inc_tax: form.amount_inc_tax,
         change_reason: form.change_reason || null,
-      });
+      };
+      if (action === 'submit' && version.status === 'DRAFT') {
+        patchBody.status = 'UNDER_REVIEW';
+      }
+      const patched = await api.patch<ContractVersion>(`/contracts/contract-versions/${version.id}`, patchBody);
       setVersion(patched);
       const updatedItems = await saveNewItems(version.id);
       setItems(updatedItems);
+      setEditedItemIds(new Set());
       if (action === 'approve') {
         await api.post(`/contracts/${contractId}/versions/${version.id}/approve`);
       }

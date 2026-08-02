@@ -10,7 +10,7 @@ from app.models.contract import Contract, ContractVersion, ContractItem, Payment
 from app.models.approval import AuditLog
 from app.schemas.contract import (
     ContractCreate, ContractResponse, ContractVersionCreate, ContractVersionResponse, ContractVersionPatch,
-    ContractItemCreate, ContractItemResponse, PaymentRuleCreate, PaymentRuleResponse
+    ContractItemCreate, ContractItemResponse, ContractItemPatch, PaymentRuleCreate, PaymentRuleResponse
 )
 
 router = APIRouter(prefix="/api/contracts", tags=["contracts"])
@@ -187,6 +187,15 @@ async def patch_contract_version(version_id: str, req: ContractVersionPatch, cur
         raise HTTPException(status_code=409, detail=f"Cannot modify version in status {cv.status}")
 
     updates = req.model_dump(exclude_unset=True)
+
+    # Status transition validation: only DRAFT -> UNDER_REVIEW is allowed via PATCH.
+    if "status" in updates:
+        requested = updates["status"]
+        if requested != ContractVersionStatus.UNDER_REVIEW.value:
+            raise HTTPException(status_code=422, detail="PATCH may only transition status to UNDER_REVIEW")
+        if cv.status != ContractVersionStatus.DRAFT:
+            raise HTTPException(status_code=409, detail=f"Cannot submit version in status {cv.status}")
+
     if any(k in updates for k in ("amount_ex_tax", "tax_amount", "amount_inc_tax")):
         ex = Decimal(updates.get("amount_ex_tax", cv.amount_ex_tax))
         tax = Decimal(updates.get("tax_amount", cv.tax_amount))
@@ -196,7 +205,10 @@ async def patch_contract_version(version_id: str, req: ContractVersionPatch, cur
 
     applied_fields = []
     for field, value in updates.items():
-        if hasattr(cv, field):
+        if field == "status":
+            cv.status = ContractVersionStatus.UNDER_REVIEW
+            applied_fields.append("status")
+        elif hasattr(cv, field):
             setattr(cv, field, value)
             applied_fields.append(field)
     cv.updated_by = current.user.id
@@ -274,6 +286,50 @@ async def list_items(version_id: str, current: CurrentUser = Depends(get_current
         is_heading=i.is_heading, is_billable=i.is_billable, retention_applicable=i.retention_applicable,
         sort_order=i.sort_order,
     ) for i in result.scalars().all()]
+
+
+@router.patch("/contract-versions/{version_id}/items/{item_id}", response_model=ContractItemResponse)
+async def patch_item(version_id: str, item_id: str, req: ContractItemPatch,
+                     current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if UserRoleEnum.SYSTEM_ADMIN not in current.roles and UserRoleEnum.CONTRACT_ADMIN not in current.roles:
+        raise HTTPException(status_code=403, detail="Insufficient role")
+    vid = uuid.UUID(version_id)
+    iid = uuid.UUID(item_id)
+    result = await db.execute(select(ContractVersion).where(ContractVersion.id == vid))
+    version = result.scalar_one_or_none()
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+    if version.status not in (ContractVersionStatus.DRAFT, ContractVersionStatus.UNDER_REVIEW):
+        raise HTTPException(status_code=409, detail=f"Cannot modify items of version in status {version.status}")
+    result = await db.execute(select(ContractItem).where(ContractItem.id == iid, ContractItem.contract_version_id == vid))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    updates = req.model_dump(exclude_unset=True)
+    applied_fields = []
+    for field, value in updates.items():
+        if hasattr(item, field):
+            setattr(item, field, value)
+            applied_fields.append(field)
+    item.updated_by = current.user.id
+
+    db.add(AuditLog(
+        organization_id=current.organization_id, user_id=current.user.id,
+        resource_type="contract_item", resource_id=str(iid),
+        action="PATCH", detail={"version_id": str(vid), "fields": applied_fields},
+    ))
+    await db.commit()
+    await db.refresh(item)
+    return ContractItemResponse(
+        id=str(item.id), contract_version_id=str(item.contract_version_id),
+        parent_item_id=str(item.parent_item_id) if item.parent_item_id else None,
+        line_no=item.line_no, item_code=item.item_code, source_description=item.source_description,
+        unit=item.unit, contract_quantity=item.contract_quantity, unit_price=item.unit_price,
+        line_amount=item.line_amount, calculation_method=item.calculation_method,
+        is_heading=item.is_heading, is_billable=item.is_billable,
+        retention_applicable=item.retention_applicable, sort_order=item.sort_order,
+    )
 
 
 @router.post("/contract-versions/{version_id}/payment-rules", response_model=PaymentRuleResponse)
