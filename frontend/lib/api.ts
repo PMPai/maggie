@@ -23,6 +23,7 @@ export const api = {
   get: <T>(path: string) => fetchApi<T>(path),
   post: <T>(path: string, body?: unknown) => fetchApi<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) => fetchApi<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(path: string, body?: unknown) => fetchApi<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   del: <T>(path: string) => fetchApi<T>(path, { method: 'DELETE' }),
   upload: <T>(path: string, formData: FormData) =>
     fetch(`${API_BASE}${path}`, { method: 'POST', body: formData, credentials: 'include' }).then(r => {
@@ -30,4 +31,27 @@ export const api = {
       return r.json() as Promise<T>;
     }),
 };
+
+import type {
+  DashboardSummary,
+  PendingApproval,
+  MasterBudgetResponse,
+} from './types';
+
+export const apiHelpers = {
+  getDashboardSummary: () => api.get<DashboardSummary>('/dashboard/summary'),
+  getPendingApprovals: (params?: Record<string, string>) => {
+    if (!params || Object.keys(params).length === 0) return api.get<{ items: PendingApproval[] }>('/approvals/pending');
+    const qs = new URLSearchParams(params).toString();
+    return api.get<{ items: PendingApproval[] }>(`/approvals/pending?${qs}`);
+  },
+  getMasterBudget: (projectId: string, contractId?: string) =>
+    api.get<MasterBudgetResponse>(`/projects/${projectId}/master-budget${contractId ? `?contract_id=${encodeURIComponent(contractId)}` : ''}`),
+  approveResource: (url: string) => api.post(url),
+  rejectResource: (url: string, reason?: string) =>
+    api.post(url, reason ? { reason } : undefined),
+  patchContractVersion: (versionId: string, body: Record<string, unknown>) =>
+    api.patch(`/contracts/contract-versions/${versionId}`, body),
+};
+
 export { ApiError };

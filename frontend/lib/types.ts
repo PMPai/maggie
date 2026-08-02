@@ -209,3 +209,90 @@ export interface ApplicationTotals {
   tax_amount: number;
   invoice_amount: number;
 }
+
+export interface DashboardSummary {
+  total_contract_amount: string;
+  gross_completed_total: string;
+  approved_total: string;
+  invoiced_total: string;
+  collected_total: string;
+  retention_held_total: string;
+  invoice_outstanding_total: string;
+  pending_variations: number;
+  pending_applications: number;
+  pending_mappings: number;
+  overclaim_exceptions: number;
+  contract_version_diffs: number;
+  per_project: {
+    project_id: string;
+    code: string;
+    name: string;
+    contract_amount: string;
+    approved_total: string;
+    retention_held: string;
+  }[];
+  recent_audit: { id: string; action: string; created_at: string | null }[];
+}
+
+export interface PendingApproval {
+  resource_type: string;
+  resource_id: string;
+  description: string;
+  project_id: string | null;
+  project_code: string | null;
+  amount: string | null;
+  waiting_for_role: string;
+  created_at: string | null;
+  approve_url: string | null;
+  reject_url: string | null;
+  detail_url: string | null;
+}
+
+export interface MasterBudgetRow {
+  contract_item_id: string;
+  parent_item_id: string | null;
+  line_no: string;
+  description: string;
+  unit: string | null;
+  contract_quantity: string;
+  unit_price: string;
+  approved_quantity: string;
+  approved_unit_price: string;
+  variation_delta: string;
+  previous_cumulative_quantity: string;
+  current_period_quantity: string;
+  cumulative_approved_quantity: string;
+  remaining_quantity: string;
+  completed_amount: string;
+  claimed_amount: string;
+  retention_balance: string;
+  invoiced_amount: string;
+  collected_amount: string;
+  standard_cost_per_unit: string | null;
+  standard_cost_total: string | null;
+  expected_margin: string | null;
+  margin_pct: string | null;
+  exception_status: 'none' | 'overclaim' | 'unmapped';
+}
+
+export interface MasterBudgetResponse {
+  contract_id: string;
+  contract_version_id: string;
+  rows: MasterBudgetRow[];
+}
+
+export interface FileInboxItem {
+  id: string;
+  original_name: string;
+  document_type: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+  version_no: number;
+  is_original: boolean;
+  is_immutable: boolean;
+  ocr_status: string;
+  ocr_text: string | null;
+  project_id: string | null;
+  uploaded_at: string | null;
+}
