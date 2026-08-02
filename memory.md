@@ -2,7 +2,7 @@
 
 > **用途**：持久化项目上下文和决策记录，避免每次会话从原始代码重新探索。
 > **更新规则**：每次做出新的决策或完成变更后，必须同步更新此文档。
-> **最后更新**：2026-07-24 — Phase A 完成
+> **最后更新**：2026-08-03 — Phase B 完成
 
 ---
 
@@ -10,7 +10,7 @@
 
 - **名称**：Maggie — 工程合同及请款管理系统 (Engineering Contract & Payment Application Management System)
 - **仓库**：https://github.com/PMPai/maggie
-- **分支**：`phase1-core-loop`
+- **分支**：`phase-b-frontend-pages`（Phase A 完成于 `phase-a-celery-pdf-ocr`，已并入）
 - **定位**：面向工程建设企业（财务、项目经理、造价、审核人员）的多项目、多角色计价请款平台
 - **核心能力**：合同版本管理 → 请款计算 → 审批过账 → 发票收款 → 文档生成完整闭环
 - **规格文档**：`Prompt.md`（1775 行，完整需求规格）
@@ -34,12 +34,11 @@
 
 ## 3. 当前完成状态
 
-- **Phase 1 + 2 + 3 全部完成**
-- 16 个数据库迁移
-- 52 项测试通过（20 项规格测试 + 32 项单元测试）
-- 17 个测试文件在 `backend/tests/`
-- 16 个 API 路由在 `backend/app/api/`
-- 工作树干净，无未提交变更
+- **Phase 1 + 2 + 3 + Phase A + Phase B 全部完成**
+- 17 个数据库迁移（Phase B 新增 migration 017：`documents.ocr_text`）
+- 92 项测试通过（70 Phase A 结束 + 22 Phase B 新增）
+- 测试文件在 `backend/tests/`
+- 工作树干净（Phase B 已提交于 `phase-b-frontend-pages` 分支）
 
 ### 3.1 后端结构
 
@@ -313,15 +312,72 @@ b23191b feat: OCR adapter protocol + stub + factory (Phase A)
 
 ---
 
+## 5.10 Phase B — 前端核心页面补全
+
+> **状态**：✅ 已完成（2026-08-03）
+> **范围**：B1 Dashboard + B2 文件收件箱 + B3 合同抽取审核 + B4 Master Budget + B5 审批中心 + B6 报表页面完善，共 14 个 Task
+> **分支**：`phase-b-frontend-pages`
+> **测试**：92 passed, 0 failed（70 Phase A 结束基线 + 22 Phase B 新增）；前端 `tsc --noEmit` 0 errors
+
+### 5.10.1 已完成内容
+
+**后端新增**：
+- Migration 017：`documents.ocr_text` nullable 列（含 upgrade/downgrade 测试）
+- `run_ocr` 任务持久化 OCR 文本到 `documents.ocr_text`
+- `GET /api/dashboard/summary`（驾驶舱聚合指标）
+- `GET /api/approvals/pending`（集中待审批列表，统一 shape，含 overclaim 场景）
+- `GET /api/projects/{id}/master-budget`（主预算树形对比，含 margin/overclaim）
+- `PATCH /api/contract-versions/{vid}`（草稿字段编辑 + 状态流转 UNDER_REVIEW→APPROVED，含 items PATCH + `GET /api/contracts/{id}` + schema `source_document_id`）
+
+**前端新增**：
+- 7 个共享组件：`Tabs`, `FilterBar`, `MoneyCell`, `DocumentPreview`, `PageLoader`, `ErrorBanner`, `ConfirmDialog`
+- 6 个页面：Dashboard（驾驶舱）、Reports（报表中心，深链可分享）、Master Budget（主预算对比）、File Inbox（文件收件箱）、Contract Extraction（合同抽取审核，左右并排）、Approval Center（审批中心）
+- 类型定义与 API helper 同步扩展
+- 侧边栏导航（`AppShell.tsx`）新增「文件收件箱」+「审批中心」入口
+
+### 5.10.2 后续待补缺口（Phase B 内未做）
+
+| # | 缺口 | 说明 |
+|---|------|------|
+| 1 | B3 合同抽取字段级编辑 | PATCH 端点目前支持状态流转与基础编辑，合同级别字段编辑深度待补 |
+| 2 | 报表深链 | 已修复（支持可分享 URL） |
+| 3 | 自动项目识别 | 文件上传后自动归属项目，推迟到后续阶段 |
+
+### 5.10.3 新增/关键文件
+
+```
+backend/app/api/
+├── dashboard.py              # GET /dashboard/summary
+├── approvals.py              # + pending 端点扩展
+└── (master_budget / contracts PATCH 扩展)
+backend/alembic/versions/ *017*.py  # ocr_text 列
+
+frontend/components/
+├── Tabs.tsx, FilterBar.tsx, MoneyCell.tsx,
+├── DocumentPreview.tsx, PageLoader.tsx,
+├── ErrorBanner.tsx, ConfirmDialog.tsx
+frontend/app/
+├── dashboard/page.tsx, reports/page.tsx,
+├── inbox/page.tsx, approvals/page.tsx,
+└── projects/[id]/master-budget/page.tsx, contracts/[id]/extraction/page.tsx
+frontend/components/AppShell.tsx  # + 文件收件箱 / 审批中心 导航
+```
+
+### 5.10.4 Commits
+
+Phase B 提交于 `phase-b-frontend-pages` 分支（Task 1–14）。最终 Task 14：`feat: Phase B complete — sidebar nav + memory update`。
+
+---
+
 ## 6. 后续阶段规划
 
-### Phase B：前端核心页面补全
-- B1. Dashboard 驾驶舱完整指标（spec 8.2）
-- B2. 文件收件箱（spec 8.3）
-- B3. 合同抽取审核（spec 8.5，左右并排）
-- B4. Master Budget 视图（spec 8.6）
-- B5. 审批与异常中心（spec 8.10）
-- B6. 报表页面完善（spec 8.14）
+### Phase B：前端核心页面补全 ✅ 已完成（2026-08-03）
+- [x] B1. Dashboard 驾驶舱完整指标（spec 8.2）
+- [x] B2. 文件收件箱（spec 8.3）
+- [x] B3. 合同抽取审核（spec 8.5，左右并排） — 字段级编辑深度待补
+- [x] B4. Master Budget 视图（spec 8.6）
+- [x] B5. 审批与异常中心（spec 8.10）
+- [x] B6. 报表页面完善（spec 8.14） — 深链已修复
 
 ### Phase C：测试与质量
 - C1. Playwright E2E 测试
