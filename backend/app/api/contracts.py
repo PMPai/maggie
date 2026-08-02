@@ -183,6 +183,11 @@ async def patch_contract_version(version_id: str, req: ContractVersionPatch, cur
     cv = result.scalar_one_or_none()
     if not cv:
         raise HTTPException(status_code=404, detail="Contract version not found")
+    result = await db.execute(select(Contract).where(Contract.id == cv.contract_id))
+    contract = result.scalar_one_or_none()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    await require_project_member(contract.project_id, current, db)
     if cv.status not in (ContractVersionStatus.DRAFT, ContractVersionStatus.UNDER_REVIEW):
         raise HTTPException(status_code=409, detail=f"Cannot modify version in status {cv.status}")
 
@@ -301,6 +306,11 @@ async def patch_item(version_id: str, item_id: str, req: ContractItemPatch,
         raise HTTPException(status_code=404, detail="Version not found")
     if version.status not in (ContractVersionStatus.DRAFT, ContractVersionStatus.UNDER_REVIEW):
         raise HTTPException(status_code=409, detail=f"Cannot modify items of version in status {version.status}")
+    result = await db.execute(select(Contract).where(Contract.id == version.contract_id))
+    contract = result.scalar_one_or_none()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    await require_project_member(contract.project_id, current, db)
     result = await db.execute(select(ContractItem).where(ContractItem.id == iid, ContractItem.contract_version_id == vid))
     item = result.scalar_one_or_none()
     if not item:
