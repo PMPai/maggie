@@ -55,6 +55,23 @@ class ContractVersionResponse(BaseModel):
     change_reason: str | None
 
 
+class ContractVersionPatch(BaseModel):
+    external_contract_no: str | None = None
+    contract_name: str | None = None
+    signed_date: date | None = None
+    effective_date: date | None = None
+    currency: str | None = None
+    tax_mode: str | None = None
+    tax_rate: Decimal | None = None
+    original_amount_ex_tax: Decimal | None = None
+    original_tax_amount: Decimal | None = None
+    original_amount_inc_tax: Decimal | None = None
+    amount_ex_tax: Decimal | None = None
+    tax_amount: Decimal | None = None
+    amount_inc_tax: Decimal | None = None
+    change_reason: str | None = None
+
+
 class ContractItemCreate(BaseModel):
     parent_item_id: str | None = None
     line_no: str

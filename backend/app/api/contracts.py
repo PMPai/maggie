@@ -5,10 +5,11 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.db.session import get_db
-from app.deps import get_current_user, CurrentUser, require_project_member
+from app.deps import get_current_user, CurrentUser, require_project_member, UserRoleEnum
 from app.models.contract import Contract, ContractVersion, ContractItem, PaymentRule, ContractVersionStatus
+from app.models.approval import AuditLog
 from app.schemas.contract import (
-    ContractCreate, ContractResponse, ContractVersionCreate, ContractVersionResponse,
+    ContractCreate, ContractResponse, ContractVersionCreate, ContractVersionResponse, ContractVersionPatch,
     ContractItemCreate, ContractItemResponse, PaymentRuleCreate, PaymentRuleResponse
 )
 
@@ -150,6 +151,46 @@ async def approve_version(contract_id: str, version_id: str, current: CurrentUse
         id=str(version.id), contract_id=str(version.contract_id), version_no=version.version_no,
         version_type=version.version_type, amount_ex_tax=version.amount_ex_tax, tax_amount=version.tax_amount,
         amount_inc_tax=version.amount_inc_tax, status=version.status, change_reason=version.change_reason,
+    )
+
+
+@router.patch("/contract-versions/{version_id}", response_model=ContractVersionResponse)
+async def patch_contract_version(version_id: str, req: ContractVersionPatch, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if UserRoleEnum.SYSTEM_ADMIN not in current.roles and UserRoleEnum.CONTRACT_ADMIN not in current.roles:
+        raise HTTPException(status_code=403, detail="Insufficient role")
+    vid = uuid.UUID(version_id)
+    result = await db.execute(select(ContractVersion).where(ContractVersion.id == vid))
+    cv = result.scalar_one_or_none()
+    if not cv:
+        raise HTTPException(status_code=404, detail="Contract version not found")
+    if cv.status not in (ContractVersionStatus.DRAFT, ContractVersionStatus.UNDER_REVIEW):
+        raise HTTPException(status_code=409, detail=f"Cannot modify version in status {cv.status}")
+
+    updates = req.model_dump(exclude_unset=True)
+    if any(k in updates for k in ("amount_ex_tax", "tax_amount", "amount_inc_tax")):
+        ex = updates.get("amount_ex_tax", cv.amount_ex_tax)
+        tax = updates.get("tax_amount", cv.tax_amount)
+        inc = updates.get("amount_inc_tax", cv.amount_inc_tax)
+        if ex + tax != inc:
+            raise HTTPException(status_code=422, detail="amount_ex_tax + tax_amount must equal amount_inc_tax")
+
+    for field, value in updates.items():
+        if hasattr(cv, field):
+            setattr(cv, field, value)
+    cv.updated_by = current.user.id
+
+    db.add(AuditLog(
+        organization_id=current.organization_id, user_id=current.user.id,
+        resource_type="contract_version", resource_id=str(vid),
+        action="PATCH", detail={"version_no": cv.version_no, "fields": list(updates.keys())},
+    ))
+    await db.commit()
+    await db.refresh(cv)
+    return ContractVersionResponse(
+        id=str(cv.id), contract_id=str(cv.contract_id), version_no=cv.version_no,
+        version_type=cv.version_type, amount_ex_tax=cv.amount_ex_tax,
+        tax_amount=cv.tax_amount, amount_inc_tax=cv.amount_inc_tax,
+        status=cv.status, change_reason=cv.change_reason,
     )
 
 
