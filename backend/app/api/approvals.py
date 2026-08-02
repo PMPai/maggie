@@ -130,26 +130,26 @@ async def list_pending(
                           f"/api/matching-reviews/{mr.id}/decide", None,
                           f"/projects/{mr.project_id}/mapping", mr.created_at))
 
-    # Overclaim exceptions (cumulative_approved_quantity > contract_quantity)
+    # Overclaim: batch-resolve via single JOIN, project-scoped at SQL level (no per-row awaits)
     seen_items: set[uuid.UUID] = set()
-    for pal, ci in (await db.execute(
-        select(PaymentApplicationLine, ContractItem)
-        .join(ContractItem, ContractItem.id == PaymentApplicationLine.contract_item_id)
-        .where(PaymentApplicationLine.cumulative_approved_quantity > ContractItem.contract_quantity)
+    for ci_id, source_description, project_id, created_at in (await db.execute(
+        select(ContractItem.id, ContractItem.source_description,
+               Contract.project_id, PaymentApplicationLine.created_at)
+        .join(PaymentApplicationLine, PaymentApplicationLine.contract_item_id == ContractItem.id)
+        .join(ContractVersion, ContractVersion.id == ContractItem.contract_version_id)
+        .join(Contract, Contract.id == ContractVersion.contract_id)
+        .where(
+            PaymentApplicationLine.cumulative_approved_quantity > ContractItem.contract_quantity,
+            Contract.project_id.in_(accessible),
+        )
     )).all():
-        if ci.id in seen_items:
+        if ci_id in seen_items:
             continue
-        seen_items.add(ci.id)
-        cv = (await db.execute(select(ContractVersion).where(ContractVersion.id == ci.contract_version_id))).scalar_one_or_none()
-        if not cv:
-            continue
-        c = (await db.execute(select(Contract).where(Contract.id == cv.contract_id))).scalar_one_or_none()
-        if not c or c.project_id not in accessible:
-            continue
-        desc = (ci.source_description or "")[:40]
-        items.append(_row("overclaim", ci.id, c.project_id, f"超量异常: {desc}",
+        seen_items.add(ci_id)
+        desc = (source_description or "")[:40]
+        items.append(_row("overclaim", ci_id, project_id, f"超量异常: {desc}",
                           None, "PROJECT_MANAGER", None, None,
-                          f"/projects/{c.project_id}/budget", pal.created_at))
+                          f"/projects/{project_id}/budget", created_at))
 
     if resource_type:
         items = [i for i in items if i["resource_type"] == resource_type]
