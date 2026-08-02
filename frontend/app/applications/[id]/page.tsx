@@ -109,6 +109,42 @@ export default function ApplicationDetailPage() {
         }
       />
 
+      {/* Approval workflow steps */}
+      <Card>
+        <CardHeader title="审批流程" />
+        <div className="card-body">
+          <div className="flex items-center gap-2 flex-wrap">
+            {(() => {
+              const steps = ['DRAFT', 'SUBMITTED', 'PROJECT_APPROVED', 'FINANCE_APPROVED', 'POSTED'];
+              const labels: Record<string, string> = {
+                DRAFT: '草稿', SUBMITTED: '已提交', PROJECT_APPROVED: '项目负责人已批',
+                FINANCE_APPROVED: '财务已批', POSTED: '已过账',
+              };
+              const currentIdx = steps.indexOf(app.status);
+              return steps.map((s, i) => {
+                const done = currentIdx > i;
+                const current = currentIdx === i;
+                return (
+                  <div key={s} className="flex items-center gap-2">
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+                      done ? 'bg-green-100 text-green-700' : current ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                        done ? 'bg-green-500 text-white' : current ? 'bg-orange-500 text-white' : 'bg-slate-300 text-white'
+                      }`}>
+                        {done ? '✓' : i + 1}
+                      </span>
+                      {labels[s]}
+                    </div>
+                    {i < steps.length - 1 && <span className="text-slate-300">→</span>}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <Card>
           <CardHeader title="请款信息" />

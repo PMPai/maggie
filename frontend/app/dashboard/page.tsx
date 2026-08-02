@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { PageHeader, StatCard, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts';
 
 const PIE_COLORS = ['#F97316', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#F59E0B', '#06B6D4', '#EF4444'];
 
@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const { user, loading } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [cashFlow, setCashFlow] = useState<{month: string; expected: string; actual: string}[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -26,6 +27,10 @@ export default function DashboardPage() {
     api
       .get<Project[]>('/projects')
       .then(setProjects)
+      .catch(() => {});
+    api
+      .get<{months: {month: string; expected: string; actual: string}[]}>('/dashboard/cash-flow')
+      .then(d => setCashFlow(d.months))
       .catch(() => {});
   }, [user]);
 
@@ -112,6 +117,25 @@ export default function DashboardPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {cashFlow.length > 0 && (
+        <Card>
+          <CardHeader title="未来现金估算" />
+          <div className="card-body" style={{ height: 350 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={cashFlow.map(m => ({ month: m.month, '预期收入': parseFloat(m.expected) || 0, '实际收款': parseFloat(m.actual) || 0 }))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} />
+                <Tooltip formatter={(v: any) => formatMoney(v)} />
+                <Legend />
+                <Line type="monotone" dataKey="预期收入" stroke="#F97316" strokeWidth={2} />
+                <Line type="monotone" dataKey="实际收款" stroke="#10B981" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
       )}
 
       <Card>

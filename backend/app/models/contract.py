@@ -116,6 +116,8 @@ class ContractItem(Base, TimestampMixin, OrganizationMixin, AuditMixin):
     source_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_bbox_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     extraction_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    expected_payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    actual_payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class PaymentRuleType(enum.Enum):

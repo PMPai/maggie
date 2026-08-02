@@ -84,6 +84,8 @@ class ContractItemPatch(BaseModel):
     calculation_method: str | None = None
     tax_category: str | None = None
     retention_applicable: bool | None = None
+    expected_payment_date: date | None = None
+    actual_payment_date: date | None = None
 
 
 class ContractItemCreate(BaseModel):

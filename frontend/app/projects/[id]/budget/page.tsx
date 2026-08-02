@@ -79,16 +79,17 @@ export default function MasterBudgetPage() {
                     <th>项目名称</th>
                     <th>单位</th>
                     <th className="text-right">合同数量</th>
-                    <th className="text-right">单价</th>
+                    <th className="text-right">合同单价</th>
+                    <th className="text-right">标准单价</th>
+                    <th className="text-right">价差</th>
                     <th className="text-right">变更</th>
-                    <th className="text-right">前期累计</th>
-                    <th className="text-right">本期</th>
                     <th className="text-right">累计批准</th>
                     <th className="text-right">剩余</th>
                     <th className="text-right">完成金额</th>
-                    <th className="text-right">保留款</th>
-                    <th className="text-right">标准成本</th>
                     <th className="text-right">毛利</th>
+                    <th className="text-right">毛利率</th>
+                    <th>预期支付</th>
+                    <th>实际支付</th>
                     <th>状态</th>
                   </tr>
                 </thead>
@@ -101,6 +102,7 @@ export default function MasterBudgetPage() {
                         ? 'bg-slate-50'
                         : '';
                     const remaining = parseFloat(r.remaining_quantity);
+                    const priceVar = r.price_variance ? parseFloat(r.price_variance) : null;
                     return (
                       <tr key={r.contract_item_id} className={rowBg}>
                         <td className="font-mono whitespace-nowrap">{r.line_no}</td>
@@ -108,9 +110,13 @@ export default function MasterBudgetPage() {
                         <td>{r.unit || '—'}</td>
                         <td className="num">{formatNumber(r.contract_quantity)}</td>
                         <td className="num">{formatMoney(r.unit_price)}</td>
+                        <td className="num">{r.standard_cost_per_unit ? formatMoney(r.standard_cost_per_unit) : '—'}</td>
+                        <td className="num">
+                          {priceVar !== null ? (
+                            <span className={priceVar < 0 ? 'text-red-600' : 'text-green-600'}>{formatMoney(r.price_variance)}</span>
+                          ) : '—'}
+                        </td>
                         <td className="num">{formatNumber(r.variation_delta)}</td>
-                        <td className="num">{formatNumber(r.previous_cumulative_quantity)}</td>
-                        <td className="num">{formatNumber(r.current_period_quantity)}</td>
                         <td className="num">{formatNumber(r.cumulative_approved_quantity)}</td>
                         <td className="num">
                           {!isNaN(remaining) && remaining < 0 ? (
@@ -118,9 +124,10 @@ export default function MasterBudgetPage() {
                           ) : formatNumber(r.remaining_quantity)}
                         </td>
                         <td className="num">{formatMoney(r.completed_amount)}</td>
-                        <td className="num">{formatMoney(r.retention_balance)}</td>
-                        <td className="num">{r.standard_cost_total ? formatMoney(r.standard_cost_total) : '—'}</td>
                         <td className="num">{r.expected_margin ? formatMoney(r.expected_margin) : '—'}</td>
+                        <td className="num">{r.margin_pct ? parseFloat(r.margin_pct).toFixed(1) + '%' : '—'}</td>
+                        <td className="text-xs text-slate-600 whitespace-nowrap">{r.expected_payment_date || '—'}</td>
+                        <td className="text-xs text-slate-600 whitespace-nowrap">{r.actual_payment_date || '—'}</td>
                         <td>
                           {r.exception_status === 'overclaim' ? (
                             <span className="badge badge-red">超量</span>
@@ -138,10 +145,7 @@ export default function MasterBudgetPage() {
                   <tr className="font-semibold bg-slate-50">
                     <td colSpan={10} className="text-right">合计</td>
                     <td className="num">{formatMoney(totals.completed)}</td>
-                    <td className="num">{formatMoney(totals.retention)}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
+                    <td colSpan={5}></td>
                   </tr>
                 </tfoot>
               </table>

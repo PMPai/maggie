@@ -231,3 +231,63 @@ async def get_summary(
         "per_project": per_project,
         "recent_audit": recent_audit,
     }
+
+
+@router.get("/cash-flow")
+async def get_cash_flow(current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Projected cash inflow by month based on expected_payment_date on contract items + actual collections."""
+    from collections import defaultdict
+    from decimal import Decimal
+
+    project_ids = await _accessible_project_ids(current, db)
+    if not project_ids:
+        return {"months": []}
+
+    contract_ids_subq = select(Contract.id).where(Contract.project_id.in_(project_ids), Contract.deleted_at.is_(None))
+
+    # Expected: sum line_amount grouped by month of expected_payment_date
+    expected_rows = (await db.execute(
+        select(
+            func.to_char(ContractItem.expected_payment_date, 'YYYY-MM').label('month'),
+            func.sum(ContractItem.line_amount).label('amount'),
+        )
+        .join(ContractVersion, ContractVersion.id == ContractItem.contract_version_id)
+        .join(Contract, Contract.id == ContractVersion.contract_id)
+        .where(
+            Contract.id.in_(contract_ids_subq),
+            ContractItem.expected_payment_date.is_not(None),
+            ContractItem.is_heading.is_(False),
+        )
+        .group_by('month')
+        .order_by('month')
+    )).all()
+
+    # Actual: sum collections grouped by month of receipt_date
+    from app.models.collection import Collection, CollectionStatus
+    actual_rows = (await db.execute(
+        select(
+            func.to_char(Collection.receipt_date, 'YYYY-MM').label('month'),
+            func.sum(Collection.amount_received).label('amount'),
+        )
+        .where(
+            Collection.project_id.in_(project_ids),
+            Collection.status == CollectionStatus.CONFIRMED,
+        )
+        .group_by('month')
+        .order_by('month')
+    )).all()
+
+    # Merge into a unified month list
+    months_map: dict[str, dict] = {}
+    for r in expected_rows:
+        m = r.month
+        months_map.setdefault(m, {"month": m, "expected": Decimal("0"), "actual": Decimal("0")})
+        months_map[m]["expected"] += r.amount or Decimal("0")
+    for r in actual_rows:
+        m = r.month
+        months_map.setdefault(m, {"month": m, "expected": Decimal("0"), "actual": Decimal("0")})
+        months_map[m]["actual"] += r.amount or Decimal("0")
+
+    months = sorted(months_map.values(), key=lambda x: x["month"])
+    # Convert decimals to strings for JSON
+    return {"months": [{"month": m["month"], "expected": str(m["expected"]), "actual": str(m["actual"])} for m in months]}

@@ -306,6 +306,7 @@ export default function ExtractPage() {
                     <th className="text-right">数量</th>
                     <th className="text-right">单价</th>
                     <th className="text-right">金额</th>
+                    <th>预期支付</th>
                     {!readOnly && <th></th>}
                   </tr>
                 </thead>
@@ -338,6 +339,11 @@ export default function ExtractPage() {
                           className="input-field text-xs w-20" />
                       </td>
                       <td className="num font-mono tabular-nums">{formatMoney(it.line_amount)}</td>
+                      <td>
+                        <input type="date" value={(it as any).expected_payment_date || ''} disabled={readOnly || busy}
+                          onChange={e => patchItem(i, { expected_payment_date: e.target.value } as any)}
+                          className="input-field text-xs w-32" />
+                      </td>
                       {!readOnly && (
                         <td>
                           <button onClick={() => setItems(items.filter((_, idx) => idx !== i))}

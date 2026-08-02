@@ -205,6 +205,7 @@ async def get_master_budget(
         std_cost_total = None
         margin = None
         margin_pct = None
+        price_variance = None
         if item.id in mapping_by_item:
             m = mapping_by_item[item.id]
             std_cost_per_unit = cost_by_std.get(m.standard_item_id)
@@ -213,6 +214,7 @@ async def get_master_budget(
                 margin = completed_amount - std_cost_total
                 if completed_amount > 0:
                     margin_pct = (margin / completed_amount) * Decimal("100")
+                price_variance = (item.unit_price or Decimal("0")) - std_cost_per_unit
 
         if remaining < 0:
             exception = "overclaim"
@@ -245,6 +247,9 @@ async def get_master_budget(
             "standard_cost_total": _str(std_cost_total) if std_cost_total is not None else None,
             "expected_margin": _str(margin) if margin is not None else None,
             "margin_pct": _str(margin_pct) if margin_pct is not None else None,
+            "price_variance": _str(price_variance) if price_variance is not None else None,
+            "expected_payment_date": item.expected_payment_date.isoformat() if item.expected_payment_date else None,
+            "actual_payment_date": item.actual_payment_date.isoformat() if item.actual_payment_date else None,
             "exception_status": exception,
         })
 

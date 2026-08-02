@@ -60,6 +60,8 @@ export interface ContractItem {
   is_billable: boolean;
   retention_applicable: boolean;
   sort_order: number;
+  expected_payment_date?: string | null;
+  actual_payment_date?: string | null;
 }
 
 export interface Application {
@@ -273,6 +275,9 @@ export interface MasterBudgetRow {
   standard_cost_total: string | null;
   expected_margin: string | null;
   margin_pct: string | null;
+  price_variance: string | null;
+  expected_payment_date: string | null;
+  actual_payment_date: string | null;
   exception_status: 'none' | 'overclaim' | 'unmapped';
 }
 
