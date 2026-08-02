@@ -1,6 +1,9 @@
 """Celery task definitions — async operations for PDF generation, OCR, and LLM matching."""
+import logging
 import uuid
 from app.tasks.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, name="tasks.generate_document")
@@ -102,7 +105,7 @@ def generate_document(self, application_id: str, output_format: str = "pdf") -> 
     return asyncio.run(_generate())
 
 
-@celery_app.task(bind=True, name="tasks.run_ocr", autoretry_for=(Exception,), retry_kwargs={"max_retries": 2})
+@celery_app.task(bind=True, name="tasks.run_ocr")
 def run_ocr(self, document_id: str) -> dict:
     """Run OCR on an uploaded document, update ocr_status and extracted text."""
     import asyncio
@@ -149,6 +152,7 @@ def run_ocr(self, document_id: str) -> dict:
                         "confidence": ocr_result.confidence,
                     }
                 except Exception:
+                    logger.exception("OCR extract failed for document %s", document_id)
                     await db.execute(
                         update(Document).where(Document.id == did).values(
                             ocr_status="FAILED",

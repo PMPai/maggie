@@ -13,6 +13,5 @@ class DocumentResponse(BaseModel):
     is_immutable: bool
     ocr_status: str
     ocr_text: str | None = None
-    extraction_confidence: float | None = None
     uploaded_at: str | None = None
     project_id: str | None = None
