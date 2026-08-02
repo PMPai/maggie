@@ -106,10 +106,18 @@ async def get_master_budget(
         for pal in pals:
             pal_by_item.setdefault(pal.contract_item_id, []).append(pal)
 
-    # Latest application (current period)
+    # Latest application (current period) — exclude terminal/rejected statuses
+    # so a REJECTED/CANCELLED/SUPERSEDED app is never picked as "current period".
     latest_app = (await db.execute(
         select(PaymentApplication)
-        .where(PaymentApplication.contract_id == contract.id)
+        .where(
+            PaymentApplication.contract_id == contract.id,
+            PaymentApplication.status.notin_([
+                ApplicationStatus.REJECTED,
+                ApplicationStatus.CANCELLED,
+                ApplicationStatus.SUPERSEDED,
+            ]),
+        )
         .order_by(PaymentApplication.period_no.desc())
     )).scalars().first()
     current_pal_by_item: dict[uuid.UUID, Decimal] = {}
