@@ -21,6 +21,7 @@ from app.api.item_mappings import router as item_mappings_router
 from app.api.matching_reviews import router as matching_reviews_router
 from app.api.reports import router as reports_router
 from app.api.tasks import router as tasks_router
+from app.api.dashboard import router as dashboard_router
 
 settings = get_settings()
 
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
     app.include_router(matching_reviews_router)
     app.include_router(reports_router)
     app.include_router(tasks_router)
+    app.include_router(dashboard_router)
 
     @app.get("/health")
     async def health():
