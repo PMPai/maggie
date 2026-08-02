@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, UniqueConstraint, text
+from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin
@@ -40,6 +40,7 @@ class Document(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMi
     ocr_status: Mapped[str] = mapped_column(String(16), nullable=False, default="NOT_REQUIRED")
     extraction_status: Mapped[str] = mapped_column(String(16), nullable=False, default="NOT_REQUIRED")
     retention_status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
+    ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class DocumentLink(Base, TimestampMixin):
