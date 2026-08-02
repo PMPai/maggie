@@ -1,6 +1,6 @@
 'use client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { PageHeader, Card, CardHeader, EmptyState, StatusBadge, formatMoney } from '@/components/ui/common';
@@ -107,6 +107,14 @@ function exportCSV(filename: string, rows: Record<string, any>[]) {
 const PAGE_SIZE = 50;
 
 export default function ReportsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-slate-500">加载中...</div>}>
+      <ReportsContent />
+    </Suspense>
+  );
+}
+
+function ReportsContent() {
   const { user, loading } = useAuth();
   const searchParams = useSearchParams();
   const knownReportKeys = reports.map(r => r.key);
