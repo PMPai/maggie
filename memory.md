@@ -25,8 +25,8 @@
 | 后端 | FastAPI, SQLAlchemy 2.x (async), Pydantic v2 | Python 3.12 |
 | 数据库 | PostgreSQL 16 + pgvector | Docker |
 | 缓存/消息 | Redis 7 | Docker |
-| 异步任务 | Celery 5.4.0（**尚未启用 worker**） | requirements.txt 已含 |
-| PDF 生成 | Playwright 1.49.1（**Docker 内未安装**） | requirements.txt 已含 |
+| 异步任务 | Celery 5.4.0（Phase A 已启用 worker） | 3 个任务：PDF/OCR/LLM |
+| PDF 生成 | Playwright 1.49.1（Phase A 已修复，Docker 内可用） | fonts-noto-cjk + 18 host 库 |
 | Excel | openpyxl 3.1.5 | |
 | 部署 | Docker Compose | 4 服务: postgres, redis, api, frontend |
 
@@ -36,7 +36,7 @@
 
 - **Phase 1 + 2 + 3 + Phase A + Phase B 全部完成**
 - 17 个数据库迁移（Phase B 新增 migration 017：`documents.ocr_text`）
-- 92 项测试通过（70 Phase A 结束 + 22 Phase B 新增）
+- 94 项测试通过（70 Phase A 结束 + 24 Phase B 新增，含安全 RBAC 隔离测试）
 - 测试文件在 `backend/tests/`
 - 工作树干净（Phase B 已提交于 `phase-b-frontend-pages` 分支）
 
@@ -335,37 +335,65 @@ b23191b feat: OCR adapter protocol + stub + factory (Phase A)
 - 类型定义与 API helper 同步扩展
 - 侧边栏导航（`AppShell.tsx`）新增「文件收件箱」+「审批中心」入口
 
-### 5.10.2 后续待补缺口（Phase B 内未做）
+### 5.10.2 后续待补缺口（Phase B 内未做 + code-review 发现）
 
-| # | 缺口 | 说明 |
-|---|------|------|
-| 1 | B3 合同抽取字段级编辑 | PATCH 端点目前支持状态流转与基础编辑，合同级别字段编辑深度待补 |
-| 2 | 报表深链 | 已修复（支持可分享 URL） |
-| 3 | 自动项目识别 | 文件上传后自动归属项目，推迟到后续阶段 |
+| # | 缺口 | 说明 | 优先级 |
+|---|------|------|--------|
+| 1 | B3 合同级字段编辑 | PATCH 端点支持版本字段 + 状态转换；合同级字段（contract_name/external_contract_no/signed_date 等）编辑待补（需 PATCH /contracts/{id} 或扩展版本 PATCH） | 中 |
+| 2 | 报表深链 | ✅ 已修复（支持可分享 URL） | — |
+| 3 | 自动项目识别 | 文件上传后自动归属项目，推迟到 Phase C+（RESTRAIN #30） | 低 |
+| 4 | B4 逐行 retention/invoiced/collected | master-budget 当前将合同/项目总额逐行重复；应改为逐项计算（需 per-item retention 聚合） | 中 |
+| 5 | dashboard per_project.retention_held | 硬编码 "0"；应聚合 per-project 保留款余额 | 低 |
+| 6 | B3 客户端金额校验/重算 | ARCHITECTURE.md 要求"前端不做业务计算"；B3 的 validate() + line_amount 重算应移至后端 | 中 |
+| 7 | B5 分页 + project/search 过滤 | 审批中心当前无分页 + 缺 project 下拉 + search | 低 |
+| 8 | B3 入口按钮 + 批准角色门控 | 合同 tab 缺"抽取审核"按钮；批准按钮未按 CONTRACT_ADMIN 角色门控 | 中 |
+| 9 | _accessible_project_ids 重复 | dashboard.py + approvals.py 字节相同 → 提取到 app/deps.py | 低 |
+| 10 | ContractVersionPatch 过度接受 | schema 接受 8 个合同级字段被 hasattr 静默丢弃；应拆分或拒绝 | 低 |
+| 11 | dashboard 聚合源偏离 spec | retention_held 用 retention_entries 而非 v_retention_balances；overclaim 计 lines 而非 items | 低 |
 
-### 5.10.3 新增/关键文件
+### 5.10.3 安全修复（code-review 后）
+
+- **RBAC 绕过修复**（commit `d0854c0`）：`PATCH /contract-versions/{vid}` + `PATCH /contract-versions/{vid}/items/{item_id}` 此前仅检查角色未调用 `require_project_member`，CONTRACT_ADMIN 可编辑非成员项目。已补 `require_project_member` 守卫 + 2 项非成员拒绝测试。测试总数 92→94。
+
+### 5.10.4 新增/关键文件
 
 ```
 backend/app/api/
 ├── dashboard.py              # GET /dashboard/summary
-├── approvals.py              # + pending 端点扩展
-└── (master_budget / contracts PATCH 扩展)
-backend/alembic/versions/ *017*.py  # ocr_text 列
+├── master_budget.py          # GET /projects/{id}/master-budget
+├── approvals.py              # + GET /pending 跨资源聚合
+└── contracts.py              # + PATCH version + PATCH item + GET /{id}
+backend/alembic/versions/017_ocr_text.py  # ocr_text 列
+backend/app/tasks/tasks.py    # run_ocr 持久化 ocr_text + 失败日志
+backend/app/schemas/contract.py  # ContractVersionPatch + ContractItemPatch + source_document_id
 
-frontend/components/
+frontend/components/ui/
 ├── Tabs.tsx, FilterBar.tsx, MoneyCell.tsx,
 ├── DocumentPreview.tsx, PageLoader.tsx,
 ├── ErrorBanner.tsx, ConfirmDialog.tsx
 frontend/app/
-├── dashboard/page.tsx, reports/page.tsx,
-├── inbox/page.tsx, approvals/page.tsx,
-└── projects/[id]/master-budget/page.tsx, contracts/[id]/extraction/page.tsx
+├── dashboard/page.tsx        # 13 指标卡
+├── inbox/page.tsx            # 文件收件箱
+├── approvals/page.tsx        # 审批中心
+├── reports/page.tsx          # 8 报表 + 3 规划中
+├── projects/[id]/budget/page.tsx        # Master Budget
+└── contracts/[id]/extract/page.tsx      # 合同抽取审核
 frontend/components/AppShell.tsx  # + 文件收件箱 / 审批中心 导航
 ```
 
-### 5.10.4 Commits
+### 5.10.5 Commits
 
-Phase B 提交于 `phase-b-frontend-pages` 分支（Task 1–14）。最终 Task 14：`feat: Phase B complete — sidebar nav + memory update`。
+Phase B 提交于 `phase-b-frontend-pages` 分支（23 commits，含 Task 1-14 + 安全修复）。关键节点：
+- `7f28852` migration 017
+- `000ff4c` dashboard endpoint
+- `b0f94ac` approvals/pending
+- `5d03436` master-budget
+- `f745a6b` PATCH contract-versions
+- `b935e18` 7 共享组件
+- `3ed6320` B3 合同抽取
+- `67b2cb9` B5 审批中心
+- `4e1b23a` Phase B complete
+- `d0854c0` 安全 RBAC 修复（code-review 后）
 
 ---
 
@@ -383,6 +411,7 @@ Phase B 提交于 `phase-b-frontend-pages` 分支（Task 1–14）。最终 Task
 - C1. Playwright E2E 测试
 - C2. 扩展集成测试
 - C3. 备份一致性验证
+- C4. Phase B code-review 发现的 follow-up 缺口（见 §5.10.2）：B3 合同级字段编辑、B4 逐行金额、客户端计算迁移后端、B5 分页/过滤、_accessible_project_ids 提取等
 
 ---
 

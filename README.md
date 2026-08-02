@@ -2,7 +2,7 @@
 
 Engineering Contract & Payment Application Management System — a multi-project, multi-role billing platform for construction firms. Handles contracts with versioned line items, progress payment applications, retention ledgers, variations, deductions, approvals, idempotent posting, invoice/collection tracking, standard item matching, optional LLM semantic matching, and PDF/Excel document generation.
 
-> **项目状态**：Phase 1 + 2 + 3 + A 全部完成 · 16 个数据库迁移 · 70 项测试通过（含 PDF 生成集成测试） · Celery Worker + Tesseract OCR + Playwright PDF · [GitHub 仓库](https://github.com/PMPai/maggie)
+> **项目状态**：Phase 1 + 2 + 3 + A + B 全部完成 · 17 个数据库迁移 · 94 项测试通过（含 PDF 生成集成测试） · Celery Worker + Tesseract OCR + Playwright PDF · 6 个核心前端页面 + 7 共享组件 · [GitHub 仓库](https://github.com/PMPai/maggie)
 
 ---
 
@@ -361,7 +361,7 @@ docker compose run --rm api python scripts/import_reference.py --dir /path/to/re
 
 ## 14. 已知限制 (Known Limitations)
 
-Phase 1 + Phase 2 + Phase 3 + Phase A 已全部实现。以下为已知限制及后续优化方向：
+Phase 1 + Phase 2 + Phase 3 + Phase A + Phase B 已全部实现。以下为已知限制及后续优化方向：
 
 | 功能 | Phase | 状态 | 说明 |
 |---|---|---|---|
@@ -375,14 +375,24 @@ Phase 1 + Phase 2 + Phase 3 + Phase A 已全部实现。以下为已知限制及
 | 报表 (8 种 DB 视图) | 3 | ✅ 已实现 | v_contract_item_balances 等 8 个视图 + 报表 API |
 | 数据库视图 (8 个) | 3 | ✅ 已实现 | 迁移 015 创建 |
 | 备份一致性检查 | 3 | ✅ 已实现 | scripts/backup_check.py — 6 项完整性检查 |
-| 安全加固 | 3 | ✅ 已实现 | 登录限流 (5次/分) + API 限流 (100次/分) |
+| 安全加固 | 3 | ✅ 已实现 | 登录限流 (5次/分) + API 限流 (100次/分) + 项目级 RBAC |
 | 历史文件导入 | 3 | ✅ 已实现 | scripts/import_reference.py — OCR + 人工审核队列 |
 | 客户模板管理 | 3 | ✅ 已实现 | document_templates + generated_documents 模型 (迁移 016) |
 | Mermaid ERD | 3 | ✅ 已实现 | docs/ERD.md |
 | 数据字典 | 3 | ✅ 已实现 | docs/DATA_DICTIONARY.md |
 | Celery Worker | A | ✅ 已实现 | 3 个异步任务：PDF 生成、OCR、LLM 匹配 |
 | PDF 生成 (Docker) | A | ✅ 已修复 | Playwright + 手动字体安装（fonts-noto-cjk + 18 个 host 库） |
-| E2E 测试 | C | 待实现 | Playwright E2E 浏览器测试（Phase C） |
+| Dashboard 驾驶舱 | B | ✅ 已实现 | 13 可点击指标卡 + 富项目表 + 最近审计（GET /api/dashboard/summary） |
+| 文件收件箱 | B | ✅ 已实现 | 上传 + OCR 轮询（指数退避）+ 预览 + 下载（/inbox） |
+| 合同抽取审核 | B | ✅ 已实现 | 左右并排 + 可编辑表单/项目行 + 校验 + 草稿/提交/批准（/contracts/[id]/extract） |
+| Master Budget 视图 | B | ✅ 已实现 | 15 列树表 + 毛利 + 异常状态 + 只读（/projects/[id]/budget） |
+| 审批与异常中心 | B | ✅ 已实现 | 统一列表 + 行内批准/拒绝（角色门控）+ 确认弹窗（/approvals） |
+| 报表页面完善 | B | ✅ 已实现 | contract-item-balances + 增强渲染 + 分页 + 合同过滤 + 3 规划中报表 |
+| 合同级字段编辑 | B | ⚠️ 部分实现 | PATCH contract-versions 支持版本字段 + 状态转换；合同级字段（contract_name 等）编辑待补 |
+| Master Budget 逐行金额 | B | ⚠️ 部分实现 | retention_balance/invoiced_amount/collected_amount 当前为合同/项目总额逐行重复；逐项计算待补 |
+| 文件自动识别项目 | B | ⏸️ 推迟 | 上传时需手选项目；自动识别留待 Phase C+（RESTRAIN #30） |
+| spec 8.14 缺失视图 | B | ⏸️ 推迟 | 项目合同总览/请款历史/应收账龄 — sidebar 标"规划中"，待后端视图实现 |
+| E2E 测试 | C | ⏸️ 待实现 | Playwright E2E 浏览器测试（Phase C） |
 
 ---
 

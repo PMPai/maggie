@@ -309,6 +309,13 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 | `StatusBadge` | 状态标签（绿/蓝/橙/红/灰/黄 6 色） |
 | `EmptyState` | 空状态（图标 + 提示文字） |
 | `formatMoney` / `formatNumber` | 金额/数量格式化（千分位 + 右对齐等宽字体） |
+| `Tabs` | 可复用标签栏（Phase B） |
+| `FilterBar` | 顶部筛选栏（下拉 + 搜索，Phase B） |
+| `MoneyCell` | 右对齐等宽金额单元格（Phase B） |
+| `DocumentPreview` | 文档预览 iframe（PDF/图片，Phase B） |
+| `PageLoader` | 加载骨架屏（Phase B） |
+| `ErrorBanner` | 错误提示横幅（可关闭，Phase B） |
+| `ConfirmDialog` | 高风险操作确认弹窗（支持原因输入，Phase B） |
 
 ### CSS 组件类 (`globals.css`)
 
@@ -329,8 +336,12 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 - **框架**：Next.js 14 App Router，`npm run dev` 模式运行于 Docker。
 - **路由**：
   - `/`（登录 — 居中卡片 + 橙色 Logo）
-  - `/dashboard`（驾驶舱 — 3 个 StatCard + 项目数据表）
-  - `/projects/[id]`（项目详情，10 个标签页：概况、合同、请款、文件、变更、保留款、扣款、发票收款、标准项目、映射）
+  - `/dashboard`（驾驶舱 — 13 可点击指标卡 + 富项目表 + 最近审计，Phase B）
+  - `/inbox`（文件收件箱 — 上传 + OCR 轮询 + 预览/下载，Phase B）
+  - `/approvals`（审批与异常中心 — 统一列表 + 行内批准/拒绝，Phase B）
+  - `/projects/[id]`（项目详情，11 个标签页：概况、合同、请款、文件、变更、保留款、扣款、发票收款、标准项目、映射、Master Budget）
+  - `/projects/[id]/budget`（Master Budget — 15 列树表 + 毛利 + 异常状态，Phase B）
+  - `/contracts/[id]/extract`（合同抽取审核 — 左右并排 + 可编辑表单/项目行，Phase B）
   - `/applications/new`（请款向导 — 4 步可视化指示器 + 实时 8 栏位合计预览）
   - `/applications/[id]`（请款详情 — 12 栏位明细表 + 8 栏位合计面板 + 审批工作流按钮）
   - `/projects/[id]/variations`（变更台账）
@@ -339,7 +350,7 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
   - `/projects/[id]/invoices`（发票与收款 — 双卡片并排 + 差异栏位）
   - `/projects/[id]/catalog`（标准项目目录）
   - `/projects/[id]/mapping`（映射审批）
-  - `/reports`（报表中心 — 7 种 DB 视图报表，侧边栏选择 + 数据表展示）
+  - `/reports`（报表中心 — 8 种 DB 视图报表 + 3 规划中，侧边栏选择 + 增强渲染 + 分页，Phase B）
   - `/audit`（审计日志 — 追加只读，最近 100 条操作记录）
 - **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/api/*`。
 - **认证**：cookie-based，`credentials: 'include'` 自动携带。
@@ -347,15 +358,39 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 
 ---
 
-## 异步任务 (Celery Worker — Phase 3 待启用)
+## 异步任务 (Celery Worker — Phase A 已启用)
 
 | 任务 | 触发 | 说明 |
 |---|---|---|
 | PDF 生成 | 请款过账后 | Playwright Chromium 渲染 A4 PDF |
 | Excel 生成 | 请款过账后 | openpyxl 生成 .xlsx |
-| 文件哈希 | 上传后 | SHA-256 计算（大文件异步） |
+| OCR 提取 | 文件上传后 | Tesseract 提取文本，持久化到 `documents.ocr_text`（Phase B 增加持久化） |
 | LLM 匹配 | 手动触发 | 标准项目语义匹配建议 |
 
-Worker 服务已在 `docker-compose.yml` 中注释，因 `backend/app/tasks/celery_app.py` 尚未实现。Phase 3 将创建 Celery stub + 启用 worker。
+Worker 服务已在 `docker-compose.yml` 中启用（Phase A）。`backend/app/tasks/celery_app.py` + `tasks.py` 实现 3 个异步任务。OCR 提取完成后将文本写入 `documents.ocr_text` 列（迁移 017，Phase B）。
 
-> **Playwright 注意**：`backend/Dockerfile` 中 Playwright 安装已注释（Debian 12 `ttf-unifont` 字体包不再可用）。需升级 Playwright 版本后恢复。PDF 生成测试 (#19) 通过主机 pytest 运行，不依赖 Docker 内 Playwright。
+> **Playwright 注意**：`backend/Dockerfile` 手动安装 18 个 host 库 + `fonts-noto-cjk` 中文字体（Debian 12 `ttf-unifont` 不再可用）。PDF 生成集成测试通过 Docker 内 Playwright 运行。
+
+---
+
+## Phase B 新增服务 (Phase B Services)
+
+### Dashboard 聚合 (`app/api/dashboard.py`)
+- `GET /api/dashboard/summary` — 一次性返回 11 个指标 + per_project 明细 + recent_audit。聚合 underlying tables（非 DB 视图，便于测试）。按当前用户可访问项目过滤。
+
+### 审批待办聚合 (`app/api/approvals.py` 扩展)
+- `GET /api/approvals/pending` — 跨资源待审列表（variation / contract_version / payment_application PM+Finance / item_mapping / matching_review / overclaim）。统一 11-key 行结构含 approve_url/reject_url/detail_url。按可访问项目 + 角色 + 类型过滤。
+- 注：`deductions` 无待审状态（DeductionStatus 仅 DRAFT/APPROVED/REJECTED，无 review 中间态）；`collection_variance` 为信息性（报表页覆盖），故两者不在待办列表中。
+
+### Master Budget (`app/api/master_budget.py`)
+- `GET /api/projects/{project_id}/master-budget` — 树状行（24 字段）含服务端毛利计算（仅当 APPROVED ItemMapping + StandardCostVersion 存在）。exception_status: overclaim (remaining<0) / unmapped (无映射) / none。所有累计/余额字段只读（计算得出）。
+
+### 合同版本编辑 (`app/api/contracts.py` 扩展)
+- `PATCH /api/contracts/contract-versions/{vid}` — 更新 DRAFT/UNDER_REVIEW 版本字段（金额/变更原因/状态转换 DRAFT→UNDER_REVIEW）。RBAC: CONTRACT_ADMIN+ + `require_project_member`。金额约束校验（ex+tax=inc）。审计日志。
+- `PATCH /api/contracts/contract-versions/{vid}/items/{item_id}` — 更新现有合同项目可编辑字段。同 RBAC + 版本状态守卫。
+- `GET /api/contracts/{contract_id}` — 单合同查询（Phase B 新增，列表端点需要 project_id 无法按合同 id 查）。
+
+### OCR 文本持久化 (Phase B)
+- `documents.ocr_text` 列（迁移 017）。
+- `run_ocr` Celery 任务完成后写入 `ocr_result.text`；失败设 `ocr_status=FAILED` + `ocr_text=None` + 日志。
+- `GET /api/documents/{id}` 返回 `ocr_text`（Phase B 新增端点）。
