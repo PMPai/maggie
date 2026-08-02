@@ -34,7 +34,7 @@ export default function DashboardPage() {
 
   const cards = summary
     ? [
-        { label: '项目数', value: projects.length, href: '/dashboard', color: 'slate' as const },
+        { label: '项目数', value: projects.length, href: '/projects', color: 'slate' as const },
         { label: '合同总金额', value: formatMoney(summary.total_contract_amount), href: '/reports?report=project-summary', color: 'blue' as const },
         { label: '累计完成金额', value: formatMoney(summary.gross_completed_total), href: '/reports?report=project-summary', color: 'blue' as const },
         { label: '累计批准请款', value: formatMoney(summary.approved_total), href: '/reports?report=uninvoiced', color: 'green' as const },
