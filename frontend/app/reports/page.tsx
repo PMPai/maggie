@@ -29,9 +29,9 @@ const reports: ReportEntry[] = [
   { key: 'collection-variances', label: '收款差异', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
   { key: 'cost-margin', label: '成本毛利分析', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
   { key: 'pending-exceptions', label: '待处理异常', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
-  { key: 'project-overview', label: '项目合同总览', icon: 'M4 6h16M4 12h16M4 18h7', comingSoon: true },
-  { key: 'application-history', label: '请款历史', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', comingSoon: true },
-  { key: 'receivables-aging', label: '应收账龄', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', comingSoon: true },
+  { key: 'project-overview', label: '项目合同总览', icon: 'M4 6h16M4 12h16M4 18h7' },
+  { key: 'application-history', label: '请款历史', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { key: 'receivables-aging', label: '应收账龄', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
 ];
 
 const MONEY_HINTS = [
@@ -76,6 +76,9 @@ const COLUMN_LABELS: Record<string, string> = {
   effective_date: '生效日期', approved_at: '批准时间',
   cost_per_unit: '单位成本', total_unit_cost: '单位总成本',
   margin_pct: '毛利率', category: '类别', subcategory: '子类',
+  approved_total: '已批准请款', invoiced_total: '已开票', collected_total: '已收款',
+  remaining: '未开票余额', aging_bucket: '账龄区间', age_days: '账龄天数',
+  issue_date: '开票日期', outstanding: '未收金额',
 };
 
 function labelFor(col: string): string {

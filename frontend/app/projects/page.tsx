@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { Project } from '@/lib/types';
 import Link from 'next/link';
-import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
+import { useRouter } from 'next/navigation';
+import { PageHeader, Card, CardHeader, StatusBadge, EmptyState } from '@/components/ui/common';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function ProjectsPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -49,6 +50,7 @@ export default function ProjectsPage() {
                   <th>状态</th>
                   <th>币别</th>
                   <th className="text-right">税率</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -63,6 +65,11 @@ export default function ProjectsPage() {
                     <td><StatusBadge status={p.status} /></td>
                     <td>{p.currency}</td>
                     <td className="num">{p.default_tax_rate}</td>
+                    <td>
+                      <Link href={`/projects/${p.id}/setup`} className="text-orange-600 text-sm hover:underline">
+                        设置预算 →
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -74,7 +81,7 @@ export default function ProjectsPage() {
       {showForm && (
         <CreateProjectModal
           onCancel={() => setShowForm(false)}
-          onCreated={() => { setShowForm(false); load(); }}
+          onCreated={(projectId) => { setShowForm(false); router.push(`/projects/${projectId}/setup`); }}
           creating={creating}
           setCreating={setCreating}
         />
@@ -85,7 +92,7 @@ export default function ProjectsPage() {
 
 function CreateProjectModal({ onCancel, onCreated, creating, setCreating }: {
   onCancel: () => void;
-  onCreated: () => void;
+  onCreated: (projectId: string) => void;
   creating: boolean;
   setCreating: (v: boolean) => void;
 }) {
@@ -118,8 +125,8 @@ function CreateProjectModal({ onCancel, onCreated, creating, setCreating }: {
       if (form.description) body.description = form.description;
       if (form.start_date) body.start_date = form.start_date;
       if (form.planned_end_date) body.planned_end_date = form.planned_end_date;
-      await api.post('/projects', body);
-      onCreated();
+      const result = await api.post<Project>('/projects', body);
+      onCreated(result.id);
     } catch (e: any) {
       setError(e?.message || '创建失败');
     } finally {

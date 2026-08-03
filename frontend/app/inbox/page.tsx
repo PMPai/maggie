@@ -107,22 +107,22 @@ export default function InboxPage() {
           onChange: (v) => setSelectedProject(v),
         }]}
       />
-      {selectedProject && (
-        <Card className="mb-4">
-          <CardHeader title="上传文件" />
-          <div className="card-body flex items-center">
-            <input ref={fileInputRef} type="file" multiple onChange={e => handleUpload(e.target.files)} className="hidden" />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="btn-primary disabled:opacity-50"
-            >
-              {uploading ? '上传中...' : '选择文件上传'}
-            </button>
-            <span className="ml-3 text-xs text-slate-400">支持 PDF / 图片 / Excel / CSV / 邮件</span>
-          </div>
-        </Card>
-      )}
+      <Card className="mb-4">
+        <CardHeader title="上传文件" />
+        <div className="card-body flex items-center">
+          <input ref={fileInputRef} type="file" multiple onChange={e => handleUpload(e.target.files)} className="hidden" />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !selectedProject}
+            className="btn-primary disabled:opacity-50"
+          >
+            {uploading ? '上传中...' : '选择文件上传'}
+          </button>
+          <span className="ml-3 text-xs text-slate-400">
+            {selectedProject ? '支持 PDF / 图片 / Excel / CSV / 邮件' : '请先选择项目后再上传'}
+          </span>
+        </div>
+      </Card>
       <Card>
         <CardHeader
           title="文件列表"

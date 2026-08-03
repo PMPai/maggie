@@ -9,6 +9,7 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DocumentPreview } from '@/components/ui/DocumentPreview';
 
 const TYPE_LABELS: Record<string, string> = {
   variation: '变更',
@@ -49,6 +50,18 @@ export default function ApprovalsPage() {
   const [filterRole, setFilterRole] = useState('');
   const [confirm, setConfirm] = useState<{ kind: 'approve' | 'reject'; item: PendingApproval } | null>(null);
   const [viewItem, setViewItem] = useState<PendingApproval | null>(null);
+  const [sourceDocId, setSourceDocId] = useState<string | null>(null);
+
+  // When viewing a contract_version approval, fetch the source document
+  useEffect(() => {
+    if (!viewItem || viewItem.resource_type !== 'contract_version') {
+      setSourceDocId(null);
+      return;
+    }
+    api.get<any>(`/contracts/contract-versions/${viewItem.resource_id}`).then(v => {
+      setSourceDocId(v.source_document_id || null);
+    }).catch(() => setSourceDocId(null));
+  }, [viewItem]);
 
   const load = useCallback(async () => {
     try {
@@ -187,7 +200,7 @@ export default function ApprovalsPage() {
       </Card>
       {viewItem && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setViewItem(null)}>
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-slate-800">审批详情</h3>
               <button onClick={() => setViewItem(null)} className="text-slate-400 hover:text-slate-600">✕</button>
@@ -201,6 +214,12 @@ export default function ApprovalsPage() {
               <div className="flex justify-between"><dt className="text-slate-500">创建时间</dt><dd className="text-slate-800">{viewItem.created_at?.substring(0, 16).replace('T', ' ') || '—'}</dd></div>
               <div className="flex justify-between"><dt className="text-slate-500">资源ID</dt><dd className="font-mono text-xs text-slate-600">{viewItem.resource_id.substring(0, 8)}…</dd></div>
             </dl>
+            {sourceDocId && (
+              <div className="mt-4 border-t pt-4">
+                <p className="text-xs text-slate-500 mb-2">原始文件</p>
+                <DocumentPreview documentId={sourceDocId} className="h-80" />
+              </div>
+            )}
             <div className="mt-5 flex gap-2 justify-end">
               {viewItem.detail_url && (
                 <Link href={viewItem.detail_url} className="btn-secondary text-sm" onClick={() => setViewItem(null)}>

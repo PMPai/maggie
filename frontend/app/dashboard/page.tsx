@@ -41,17 +41,14 @@ export default function DashboardPage() {
     ? [
         { label: '项目数', value: projects.length, href: '/projects', color: 'slate' as const },
         { label: '合同总金额', value: formatMoney(summary.total_contract_amount), href: '/reports?report=project-summary', color: 'blue' as const },
-        { label: '累计完成金额', value: formatMoney(summary.gross_completed_total), href: '/reports?report=project-summary', color: 'blue' as const },
         { label: '累计批准请款', value: formatMoney(summary.approved_total), href: '/reports?report=uninvoiced', color: 'green' as const },
         { label: '已开票', value: formatMoney(summary.invoiced_total), href: '/reports?report=invoice-outstanding', color: 'green' as const },
         { label: '已收款', value: formatMoney(summary.collected_total), href: '/reports?report=collection-variances', color: 'green' as const },
         { label: '未释放保留款', value: formatMoney(summary.retention_held_total), href: '/reports?report=retention-balances', color: 'orange' as const },
-        { label: '已开票未收款', value: formatMoney(summary.invoice_outstanding_total), href: '/reports?report=invoice-outstanding', color: 'orange' as const },
         { label: '待批准变更', value: summary.pending_variations, href: '/approvals?resource_type=variation', color: 'orange' as const },
         { label: '待审核请款', value: summary.pending_applications, href: '/approvals?resource_type=payment_application_pm', color: 'orange' as const },
         { label: '待审核映射', value: summary.pending_mappings, href: '/approvals?resource_type=item_mapping', color: 'orange' as const },
         { label: '超合同数量异常', value: summary.overclaim_exceptions, href: '/approvals?resource_type=overclaim', color: 'red' as const },
-        { label: '合同金额版本差异', value: summary.contract_version_diffs, href: '/reports?report=contract-item-balances', color: 'red' as const },
       ]
     : [];
 
