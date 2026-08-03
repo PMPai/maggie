@@ -151,6 +151,36 @@ async def list_pending(
                           None, "PROJECT_MANAGER", None, None,
                           f"/projects/{project_id}/budget", created_at))
 
+    # Deductions with DRAFT status (pending approval)
+    from app.models.deduction import Deduction
+    for d in (await db.execute(
+        select(Deduction).where(Deduction.project_id.in_(accessible), Deduction.status == "DRAFT")
+    )).scalars().all():
+        items.append(_row("deduction", d.id, d.project_id, f"扣款审批: {getattr(d, 'deduction_no', '')}",
+                          getattr(d, "amount", None), "FINANCE_REVIEWER",
+                          f"/api/deductions/{d.id}/approve", None,
+                          f"/projects/{d.project_id}/deductions", d.created_at))
+
+    # Collection variances (invoices with outstanding > 0)
+    from app.models.invoice import Invoice, InvoiceStatus
+    from app.models.collection import Collection, CollectionStatus, CollectionAllocation
+    from sqlalchemy import func as sqlfunc
+    for inv, proj_id in (await db.execute(
+        select(Invoice, Contract.project_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .where(Invoice.project_id.in_(accessible), Invoice.status == InvoiceStatus.ISSUED)
+    )).all():
+        collected = (await db.execute(
+            select(sqlfunc.coalesce(sqlfunc.sum(CollectionAllocation.allocated_amount), 0))
+            .join(Collection, Collection.id == CollectionAllocation.collection_id)
+            .where(CollectionAllocation.invoice_id == inv.id, Collection.status == CollectionStatus.CONFIRMED)
+        )).scalar_one()
+        outstanding = float(inv.amount_inc_tax or 0) - float(collected)
+        if outstanding > 0.01:
+            items.append(_row("collection_variance", inv.id, proj_id, f"发票 {inv.invoice_no} 未收清 (差 {outstanding:.0f})",
+                              str(outstanding), "FINANCE_USER", None, None,
+                              f"/projects/{proj_id}/invoices", inv.created_at if hasattr(inv, 'created_at') else None))
+
     if resource_type:
         items = [i for i in items if i["resource_type"] == resource_type]
     if waiting_for_role:

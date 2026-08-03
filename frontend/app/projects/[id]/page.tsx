@@ -23,7 +23,7 @@ const TAB_LABELS: Record<Tab, string> = {
   budget: 'Master Budget',
 };
 
-const LEDGER_TABS: Tab[] = ['variations', 'retention', 'deductions', 'invoices', 'catalog', 'mapping', 'budget'];
+const LEDGER_TABS: Tab[] = ['variations', 'retention', 'deductions', 'invoices', 'catalog', 'mapping', 'budget', 'files'];
 
 export default function ProjectDetailPage() {
   const { user, loading } = useAuth();
@@ -159,7 +159,12 @@ export default function ProjectDetailPage() {
       {tab === 'files' && (
         <Card>
           <div className="card-body">
-            <EmptyState message="文件档案将在后续阶段完善" />
+            <Link href={`/projects/${projectId}/files`} className="btn-secondary inline-flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              查看文件档案 →
+            </Link>
           </div>
         </Card>
       )}

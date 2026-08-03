@@ -51,26 +51,29 @@ export default function NewApplicationPage() {
     if (filled.length === 0 || !selectedContract) { setPreview(null); return; }
     setPreviewLoading(true);
     try {
-      const contract = contracts.find(c => c.id === selectedContract)!;
-      const taxRate = parseFloat(contract.tax_rate || '0') / 100;
-      let gross = 0;
-      for (const line of filled) {
-        const item = items.find(i => i.id === line.itemId);
-        if (!item) continue;
-        gross += parseFloat(item.unit_price) * parseFloat(line.qty);
-      }
-      const retention = gross * 0.05;
-      const taxable = gross - retention;
-      const tax = taxable * taxRate;
-      const invoice = taxable + tax;
+      const result = await api.post<{
+        gross_completed_amount: string;
+        retention_held_amount: string;
+        retention_released_amount: string;
+        deduction_amount: string;
+        taxable_amount: string;
+        tax_amount: string;
+        invoice_amount: string;
+      }>('/payment-applications/preview', {
+        contract_id: selectedContract,
+        lines: filled.map(l => ({
+          contract_item_id: l.itemId,
+          current_claimed_quantity: l.qty,
+        })),
+      });
       setPreview({
-        gross_completed_amount: gross,
-        retention_held_amount: retention,
-        retention_released_amount: 0,
-        deduction_amount: 0,
-        taxable_amount: taxable,
-        tax_amount: tax,
-        invoice_amount: invoice,
+        gross_completed_amount: parseFloat(result.gross_completed_amount),
+        retention_held_amount: parseFloat(result.retention_held_amount),
+        retention_released_amount: parseFloat(result.retention_released_amount),
+        deduction_amount: parseFloat(result.deduction_amount),
+        taxable_amount: parseFloat(result.taxable_amount),
+        tax_amount: parseFloat(result.tax_amount),
+        invoice_amount: parseFloat(result.invoice_amount),
       });
     } catch {
       setPreview(null);

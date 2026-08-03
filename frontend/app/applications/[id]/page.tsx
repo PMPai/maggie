@@ -16,6 +16,9 @@ export default function ApplicationDetailPage() {
   const [contract, setContract] = useState<Contract | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
+  const [validation, setValidation] = useState<{ valid: boolean; issues: { code: string; field: string; message: string; severity: string }[] } | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [genStatus, setGenStatus] = useState<string>('');
 
   useEffect(() => {
     if (!user) return;
@@ -43,6 +46,49 @@ export default function ApplicationDetailPage() {
     } catch (e) {
       alert(`操作失败：${(e as Error).message}`);
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const doValidate = async () => {
+    setValidating(true);
+    try {
+      const result = await api.post<{ valid: boolean; issues: { code: string; field: string; message: string; severity: string }[] }>(`/payment-applications/${appId}/validate`, {});
+      setValidation(result);
+    } catch (e) {
+      alert(`校验失败：${(e as Error).message}`);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const doGenerate = async () => {
+    setBusy(true);
+    setGenStatus('');
+    try {
+      const result = await api.post<{ task_id: string; status: string }>(`/payment-applications/${appId}/generate`, {});
+      setGenStatus('生成中...');
+      // Poll task status
+      const poll = setInterval(async () => {
+        try {
+          const ts = await api.get<{ state: string; result: any; error: string | null }>(`/tasks/${result.task_id}/status`);
+          if (ts.state === 'SUCCESS') {
+            clearInterval(poll);
+            setGenStatus('完成');
+            setBusy(false);
+          } else if (ts.state === 'FAILURE') {
+            clearInterval(poll);
+            setGenStatus('失败: ' + (ts.error || ''));
+            setBusy(false);
+          }
+        } catch {
+          clearInterval(poll);
+          setGenStatus('查询失败');
+          setBusy(false);
+        }
+      }, 2000);
+    } catch (e) {
+      alert(`生成失败：${(e as Error).message}`);
       setBusy(false);
     }
   };
@@ -88,9 +134,14 @@ export default function ApplicationDetailPage() {
         actions={
           <div className="flex gap-2">
             {app.status === 'DRAFT' && (
-              <button disabled={busy} onClick={() => doTransition('submit')} className="btn-primary">
-                提交审批
-              </button>
+              <>
+                <button disabled={validating} onClick={doValidate} className="btn-secondary">
+                  {validating ? '校验中...' : '校验'}
+                </button>
+                <button disabled={busy} onClick={() => doTransition('submit')} className="btn-primary">
+                  提交审批
+                </button>
+              </>
             )}
             {app.status === 'SUBMITTED' && (
               <button disabled={busy} onClick={() => doTransition('approve')} className="btn-primary">
@@ -100,6 +151,11 @@ export default function ApplicationDetailPage() {
             {app.status === 'APPROVED' && (
               <button disabled={busy} onClick={() => doTransition('post')} className="btn-primary">
                 过账
+              </button>
+            )}
+            {(app.status === 'POSTED' || app.status === 'GENERATED') && (
+              <button disabled={busy} onClick={doGenerate} className="btn-primary">
+                {busy ? (genStatus || '处理中...') : '生成 PDF'}
               </button>
             )}
             <Link href={project ? `/projects/${project.id}` : '/dashboard'} className="btn-secondary">
@@ -144,6 +200,34 @@ export default function ApplicationDetailPage() {
           </div>
         </div>
       </Card>
+
+      {validation && (
+        <Card>
+          <CardHeader title="校验结果" actions={
+            <span className={validation.valid ? 'badge badge-green' : 'badge badge-red'}>
+              {validation.valid ? '通过' : `${validation.issues.filter(i => i.severity === 'ERROR').length} 个错误`}
+            </span>
+          } />
+          <div className="card-body">
+            {validation.issues.length === 0 ? (
+              <p className="text-sm text-green-600">所有校验规则通过 ✓</p>
+            ) : (
+              <ul className="space-y-2">
+                {validation.issues.map((issue, i) => (
+                  <li key={i} className={`flex items-start gap-2 text-sm ${issue.severity === 'ERROR' ? 'text-red-600' : 'text-orange-600'}`}>
+                    <span className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${
+                      issue.severity === 'ERROR' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
+                    }`}>
+                      {issue.severity === 'ERROR' ? '!' : '?'}
+                    </span>
+                    <span>{issue.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <Card>

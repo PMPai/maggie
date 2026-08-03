@@ -57,3 +57,15 @@ class ApplicationResponse(BaseModel):
 
 class PostRequest(BaseModel):
     action_id: str  # idempotency key
+
+
+class PreviewLineInput(BaseModel):
+    contract_item_id: str
+    current_claimed_quantity: Decimal
+    current_approved_quantity: Decimal | None = None
+    direct_amount: Decimal | None = None
+
+
+class PreviewRequest(BaseModel):
+    contract_id: str
+    lines: list[PreviewLineInput]
