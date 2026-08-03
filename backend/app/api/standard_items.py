@@ -9,6 +9,7 @@ from app.schemas.standard import (
     StandardItemAliasCreate, StandardItemAliasResponse,
     StandardCostVersionCreate, StandardCostVersionResponse,
 )
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/standard-items", tags=["standard-items"])
 
@@ -22,6 +23,15 @@ async def create_standard_item(req: StandardItemCreate, current: CurrentUser = D
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(item)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="standard_item",
+        resource_id=str(item.id),
+        detail={"code": item.code, "name": item.name},
+    ))
     await db.commit()
     await db.refresh(item)
     return StandardItemResponse(
@@ -72,6 +82,14 @@ async def update_standard_item(item_id: str, req: StandardItemCreate, current: C
     item.is_active = req.is_active
     item.sort_order = req.sort_order
     item.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="UPDATE",
+        resource_type="standard_item",
+        resource_id=str(item.id),
+        detail={"code": item.code, "name": item.name},
+    ))
     await db.commit()
     await db.refresh(item)
     return StandardItemResponse(

@@ -8,6 +8,7 @@ from app.deps import get_current_user, CurrentUser, require_project_member
 from app.models.billing import RetentionEntry, RetentionEntryType
 from app.schemas.retention import RetentionEntryCreate, RetentionEntryResponse, RetentionBalanceResponse
 from app.services.retention_service import get_balance, create_release, create_adjustment, create_reversal
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/retention-entries", tags=["retention-entries"])
 
@@ -74,6 +75,16 @@ async def create_entry(
         )
     else:
         raise HTTPException(status_code=400, detail="HOLD entries are created automatically on post; use RELEASE/ADJUSTMENT/REVERSAL")
+
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="retention_entry",
+        resource_id=str(entry.id),
+        detail={"entry_type": entry.entry_type.value if hasattr(entry.entry_type, "value") else entry.entry_type, "contract_id": str(entry.contract_id)},
+    ))
+    await db.commit()
 
     return RetentionEntryResponse(
         id=str(entry.id), project_id=str(entry.project_id), contract_id=str(entry.contract_id),

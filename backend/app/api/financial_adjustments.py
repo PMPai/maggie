@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser, require_project_member
 from app.models.financial_adjustment import FinancialAdjustment
 from app.schemas.financial_adjustment import FinancialAdjustmentCreate, FinancialAdjustmentResponse
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/financial-adjustments", tags=["financial-adjustments"])
 
@@ -78,6 +79,14 @@ async def approve_adjustment(adjustment_id: str, current: CurrentUser = Depends(
     adj.approved_by = current.user.id
     adj.approved_at = date.today()
     adj.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="APPROVE",
+        resource_type="financial_adjustment",
+        resource_id=str(adj.id),
+        detail={"adjustment_no": adj.adjustment_no},
+    ))
     await db.commit()
     await db.refresh(adj)
     return _to_response(adj)

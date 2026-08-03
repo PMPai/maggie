@@ -5,6 +5,7 @@ from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser
 from app.models.variation import Variation, VariationStatus, VariationType
 from app.schemas.variation import VariationCreate, VariationResponse
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/variations", tags=["variations"])
 
@@ -90,6 +91,14 @@ async def approve_variation(variation_id: str, current: CurrentUser = Depends(ge
     from datetime import date
     v.approved_at = date.today()
     v.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="APPROVE",
+        resource_type="variation",
+        resource_id=str(v.id),
+        detail={"variation_no": v.variation_no},
+    ))
     await db.commit()
     await db.refresh(v)
     return VariationResponse(
@@ -115,6 +124,14 @@ async def reject_variation(variation_id: str, current: CurrentUser = Depends(get
         raise HTTPException(status_code=404, detail="Variation not found")
     v.status = VariationStatus.REJECTED
     v.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="REJECT",
+        resource_type="variation",
+        resource_id=str(v.id),
+        detail={"variation_no": v.variation_no},
+    ))
     await db.commit()
     await db.refresh(v)
     return VariationResponse(

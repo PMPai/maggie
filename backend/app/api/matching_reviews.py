@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser, require_project_member
 from app.models.matching_review import MatchingReview
 from app.schemas.matching_review import MatchingReviewCreate, MatchingReviewResponse, MatchingReviewDecide
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/mapping-reviews", tags=["matching-reviews"])
 
@@ -79,6 +80,14 @@ async def decide_matching_review(review_id: str, req: MatchingReviewDecide, curr
     review.notes = req.notes
     review.status = "DECIDED"
     review.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="DECIDE",
+        resource_type="matching_review",
+        resource_id=str(review.id),
+        detail={"decision": review.decision},
+    ))
     await db.commit()
     await db.refresh(review)
     return _to_response(review)

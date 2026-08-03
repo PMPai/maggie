@@ -12,6 +12,7 @@ from app.schemas.collection import (
     CollectionCreate, CollectionResponse, CollectionAllocationCreate, CollectionAllocationResponse,
 )
 from app.services.collection_service import get_invoice_outstanding
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
@@ -46,6 +47,15 @@ async def create_collection(req: CollectionCreate, current: CurrentUser = Depend
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(col)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="collection",
+        resource_id=str(col.id),
+        detail={"receipt_no": col.receipt_no},
+    ))
     await db.commit()
     await db.refresh(col)
     return _to_response(col)
@@ -102,6 +112,14 @@ async def allocate(collection_id: str, req: CollectionAllocationCreate, current:
         inv.status = InvoiceStatus.PAID if remaining <= Decimal("0") else InvoiceStatus.PARTIALLY_PAID
         inv.updated_by = current.user.id
 
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="ALLOCATE",
+        resource_type="collection",
+        resource_id=str(cid),
+        detail={"invoice_id": str(inv_id), "allocated_amount": str(req.allocated_amount)},
+    ))
     await db.commit()
     await db.refresh(allocation)
     return CollectionAllocationResponse(

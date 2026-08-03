@@ -12,6 +12,7 @@ from app.auth.csrf import generate_csrf_token, verify_csrf
 from app.auth.rbac import get_current_user, CurrentUser
 from app.config import get_settings
 from app.schemas.auth import LoginRequest, UserResponse, ChangePasswordRequest
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
@@ -35,6 +36,14 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
     set_auth_cookies(response, access, refresh, csrf)
 
     await db.execute(update(User).where(User.id == user.id).values(last_login_at=datetime.now(timezone.utc)))
+    db.add(AuditLog(
+        organization_id=user.organization_id,
+        user_id=user.id,
+        action="LOGIN",
+        resource_type="user",
+        resource_id=str(user.id),
+        detail={"email": user.email},
+    ))
     await db.commit()
 
     return UserResponse(id=str(user.id), email=user.email, display_name=user.display_name, organization_id=str(user.organization_id), roles=roles)
@@ -84,5 +93,12 @@ async def change_password(req: ChangePasswordRequest, current: CurrentUser = Dep
     if not current.user.password_hash or not verify_password(req.old_password, current.user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password incorrect")
     await db.execute(update(User).where(User.id == current.user.id).values(password_hash=hash_password(req.new_password)))
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CHANGE_PASSWORD",
+        resource_type="user",
+        resource_id=str(current.user.id),
+    ))
     await db.commit()
     return {"message": "password changed"}

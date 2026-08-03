@@ -17,6 +17,7 @@ from app.schemas.billing import (
     ApplicationLineResponse, PostRequest, PreviewRequest,
 )
 from app.models.identity import UserRoleEnum
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/payment-applications", tags=["payment-applications"])
 
@@ -43,6 +44,15 @@ async def create_application(req: ApplicationCreate, current: CurrentUser = Depe
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(app)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="payment_application",
+        resource_id=str(app.id),
+        detail={"application_no": app.application_no, "project_id": str(pid), "contract_id": str(cid)},
+    ))
     await db.commit()
     await db.refresh(app)
     return ApplicationResponse(
@@ -238,6 +248,16 @@ async def generate_document_endpoint(app_id: str, output_format: str = "pdf", cu
 
     if app.status != ApplicationStatus.POSTED and app.status != ApplicationStatus.GENERATED:
         raise HTTPException(status_code=400, detail="Application must be POSTED to generate document")
+
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="GENERATE",
+        resource_type="payment_application",
+        resource_id=str(aid),
+        detail={"output_format": output_format},
+    ))
+    await db.commit()
 
     from app.tasks.tasks import generate_document
     task = generate_document.delay(str(aid), output_format)

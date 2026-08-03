@@ -11,6 +11,7 @@ from app.models.contract import Contract
 from app.schemas.invoice import (
     InvoiceCreate, InvoiceResponse, InvoiceLinkCreate, InvoiceLinkResponse,
 )
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
@@ -49,6 +50,15 @@ async def create_invoice(req: InvoiceCreate, current: CurrentUser = Depends(get_
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(inv)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="invoice",
+        resource_id=str(inv.id),
+        detail={"invoice_no": inv.invoice_no},
+    ))
     await db.commit()
     await db.refresh(inv)
     return _to_response(inv)
@@ -156,6 +166,14 @@ async def issue_invoice(invoice_id: str, current: CurrentUser = Depends(get_curr
     if not inv.issue_date:
         inv.issue_date = date.today()
     inv.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="ISSUE",
+        resource_type="invoice",
+        resource_id=str(inv.id),
+        detail={"invoice_no": inv.invoice_no},
+    ))
     await db.commit()
     await db.refresh(inv)
     return _to_response(inv)

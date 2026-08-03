@@ -10,6 +10,7 @@ from app.models.project import Project
 from app.models.document import Document
 from app.services.file_service import save_upload, get_file_path
 from app.schemas.document import DocumentResponse
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 

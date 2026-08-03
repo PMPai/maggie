@@ -5,6 +5,7 @@ from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser
 from app.models.project import Company
 from app.schemas.project import CompanyCreate, CompanyResponse
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/companies", tags=["companies"])
 
@@ -18,6 +19,15 @@ async def create_company(req: CompanyCreate, current: CurrentUser = Depends(get_
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(company)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="company",
+        resource_id=str(company.id),
+        detail={"code": company.code, "name": company.name},
+    ))
     await db.commit()
     await db.refresh(company)
     return CompanyResponse(id=str(company.id), code=company.code, name=company.name, company_type=company.company_type, tax_id=company.tax_id, status=company.status)

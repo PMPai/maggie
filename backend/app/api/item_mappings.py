@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser, require_project_member
 from app.models.mapping import ItemMapping, MappingStatus
 from app.schemas.mapping import ItemMappingCreate, ItemMappingResponse
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/item-mappings", tags=["item-mappings"])
 
@@ -88,6 +89,13 @@ async def approve_item_mapping(mapping_id: str, current: CurrentUser = Depends(g
     mapping.status = MappingStatus.APPROVED
     mapping.approved_by = current.user.id
     mapping.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="APPROVE",
+        resource_type="item_mapping",
+        resource_id=str(mapping.id),
+    ))
     await db.commit()
     await db.refresh(mapping)
     return _to_response(mapping)
@@ -98,6 +106,13 @@ async def reject_item_mapping(mapping_id: str, current: CurrentUser = Depends(ge
     mapping = await _get_mapping(mapping_id, current, db)
     mapping.status = MappingStatus.REJECTED
     mapping.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="REJECT",
+        resource_type="item_mapping",
+        resource_id=str(mapping.id),
+    ))
     await db.commit()
     await db.refresh(mapping)
     return _to_response(mapping)

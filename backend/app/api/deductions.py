@@ -5,6 +5,7 @@ from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser
 from app.models.deduction import Deduction, DeductionStatus, DeductionType, TaxTreatment
 from app.schemas.deduction import DeductionCreate, DeductionResponse
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/deductions", tags=["deductions"])
 
@@ -20,6 +21,15 @@ async def create_deduction(req: DeductionCreate, current: CurrentUser = Depends(
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(deduction)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="deduction",
+        resource_id=str(deduction.id),
+        detail={"deduction_no": deduction.deduction_no},
+    ))
     await db.commit()
     await db.refresh(deduction)
     return DeductionResponse(
@@ -85,6 +95,14 @@ async def approve_deduction(deduction_id: str, current: CurrentUser = Depends(ge
     from datetime import date
     d.approved_at = date.today()
     d.updated_by = current.user.id
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="APPROVE",
+        resource_type="deduction",
+        resource_id=str(d.id),
+        detail={"deduction_no": d.deduction_no},
+    ))
     await db.commit()
     await db.refresh(d)
     return DeductionResponse(

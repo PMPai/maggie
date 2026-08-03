@@ -6,6 +6,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.document import StorageRoot, Document, DocumentLink
+from app.models.approval import AuditLog
 from app.config import get_settings
 
 settings = get_settings()
@@ -103,6 +104,14 @@ async def save_upload(
     # Create project link
     link = DocumentLink(document_id=doc.id, link_type="PROJECT", linked_id=project_id)
     db.add(link)
+    db.add(AuditLog(
+        organization_id=organization_id,
+        user_id=user_id,
+        action="UPLOAD",
+        resource_type="document",
+        resource_id=str(doc.id),
+        detail={"document_type": document_type, "original_name": doc.original_name, "project_id": str(project_id)},
+    ))
     await db.commit()
     await db.refresh(doc)
     return doc
