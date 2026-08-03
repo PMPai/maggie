@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [cashFlow, setCashFlow] = useState<{month: string; expected: string; actual: string}[]>([]);
+  const [payTrend, setPayTrend] = useState<{month: string; amount: string}[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -31,6 +32,10 @@ export default function DashboardPage() {
     api
       .get<{months: {month: string; expected: string; actual: string}[]}>('/dashboard/cash-flow')
       .then(d => setCashFlow(d.months))
+      .catch(() => {});
+    api
+      .get<{months: {month: string; amount: string}[]}>('/dashboard/payment-trend')
+      .then(d => setPayTrend(d.months))
       .catch(() => {});
   }, [user]);
 
@@ -129,6 +134,24 @@ export default function DashboardPage() {
                 <Legend />
                 <Line type="monotone" dataKey="预期收入" stroke="#F97316" strokeWidth={2} />
                 <Line type="monotone" dataKey="实际收款" stroke="#10B981" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      {payTrend.length > 0 && (
+        <Card>
+          <CardHeader title="请款趋势" />
+          <div className="card-body" style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={payTrend.map(m => ({ month: m.month, '请款金额': parseFloat(m.amount) || 0 }))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} />
+                <Tooltip formatter={(v: any) => formatMoney(v)} />
+                <Legend />
+                <Line type="monotone" dataKey="请款金额" stroke="#3B82F6" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>

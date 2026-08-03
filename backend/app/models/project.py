@@ -42,6 +42,7 @@ class Project(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMix
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
     currency: Mapped[str] = mapped_column(String(8), nullable=False, default="TWD")
     default_tax_rate: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False, default=Decimal("0.05"))
+    special_fund_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("organization_id", "internal_project_code", name="uq_projects_org_code"),

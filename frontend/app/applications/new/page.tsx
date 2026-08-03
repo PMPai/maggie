@@ -6,7 +6,7 @@ import type { Project, Contract, ContractItem, Application, ApplicationTotals } 
 import { useRouter } from 'next/navigation';
 import { PageHeader, Card, CardHeader, formatMoney, formatNumber } from '@/components/ui/common';
 
-const STEPS = ['选择项目', '选择合同', '请款信息', '输入数量'] as const;
+const STEPS = ['选择项目', '选择合同', '请款信息', '输入数量', '上传证明文件'] as const;
 
 export default function NewApplicationPage() {
   const { user, loading } = useAuth();
@@ -25,6 +25,9 @@ export default function NewApplicationPage() {
   const [preview, setPreview] = useState<ApplicationTotals | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; id: string }[]>([]);
+  const [appCreatedId, setAppCreatedId] = useState<string | null>(null);
+  const hasQuantities = lines.some(l => l.qty && parseFloat(l.qty) > 0);
 
   useEffect(() => {
     if (user) api.get<Project[]>('/projects').then(setProjects);
@@ -103,6 +106,13 @@ export default function NewApplicationPage() {
         application_no: appNo, period_no: periodNo,
         period_start: pStart, period_end: pEnd, application_date: today,
       });
+      setAppCreatedId(app.id);
+      // Link any already-uploaded files to this application
+      for (const f of uploadedFiles) {
+        try {
+          await api.post(`/documents/${f.id}/link`, { link_type: 'APPLICATION', linked_id: app.id });
+        } catch {}
+      }
       for (const line of lines) {
         if (line.qty && parseFloat(line.qty) > 0) {
           await api.post(`/payment-applications/${app.id}/lines`, {
@@ -117,7 +127,25 @@ export default function NewApplicationPage() {
     }
   };
 
-  const currentStep = !selectedProject ? 0 : !selectedContract ? 1 : !appNo ? 2 : 3;
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || !selectedProject) return;
+    for (const file of Array.from(files)) {
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const doc = await api.upload<{ id: string; original_name: string }>(`/documents/upload?project_id=${selectedProject}&document_type=APPLICATION`, formData);
+        // Link to the application if already created
+        if (appCreatedId) {
+          await api.post(`/documents/${doc.id}/link`, { link_type: 'APPLICATION', linked_id: appCreatedId });
+        }
+        setUploadedFiles([...uploadedFiles, { name: file.name, id: doc.id }]);
+      } catch (e) {
+        alert(`上传失败：${(e as Error).message}`);
+      }
+    }
+  };
+
+  const currentStep = !selectedProject ? 0 : !selectedContract ? 1 : !appNo ? 2 : !hasQuantities ? 3 : 4;
   const previewBuckets: { label: string; value: string; emphasis?: boolean }[] = preview
     ? [
         { label: '本期完成金额', value: formatMoney(preview.gross_completed_amount) },
@@ -304,6 +332,30 @@ export default function NewApplicationPage() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        </Card>
+
+        <Card className={hasQuantities ? '' : 'opacity-60 pointer-events-none'}>
+          <CardHeader title="上传证明文件" actions={<span className="text-xs text-slate-400">步骤 5</span>} />
+          <div className="card-body">
+            <input
+              type="file" multiple disabled={!selectedProject}
+              onChange={e => handleFileUpload(e.target.files)}
+              className="text-sm" accept=".pdf,.jpg,.png,.xlsx,.csv"
+            />
+            <p className="text-xs text-slate-400 mt-2">支持 PDF / 图片 / Excel / CSV（可选，但建议上传请款证明文件）</p>
+            {uploadedFiles.length > 0 && (
+              <ul className="mt-3 space-y-1">
+                {uploadedFiles.map((f, i) => (
+                  <li key={i} className="text-sm text-green-600 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {f.name}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </Card>

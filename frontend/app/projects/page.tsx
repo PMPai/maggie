@@ -104,6 +104,7 @@ function CreateProjectModal({ onCancel, onCreated, creating, setCreating }: {
     default_tax_rate: '0.05',
     start_date: '',
     planned_end_date: '',
+    special_fund_description: '',
   });
   const [error, setError] = useState('');
 
@@ -125,6 +126,7 @@ function CreateProjectModal({ onCancel, onCreated, creating, setCreating }: {
       if (form.description) body.description = form.description;
       if (form.start_date) body.start_date = form.start_date;
       if (form.planned_end_date) body.planned_end_date = form.planned_end_date;
+      if (form.special_fund_description) body.special_fund_description = form.special_fund_description;
       const result = await api.post<Project>('/projects', body);
       onCreated(result.id);
     } catch (e: any) {
@@ -202,6 +204,14 @@ function CreateProjectModal({ onCancel, onCreated, creating, setCreating }: {
                 className="input-field text-sm"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">特有款说明</label>
+            <textarea
+              value={form.special_fund_description}
+              onChange={e => setForm({ ...form, special_fund_description: e.target.value })}
+              className="input-field text-sm" rows={2} placeholder="如有特有款，请在此说明（可选）"
+            />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onCancel} className="btn-secondary">取消</button>

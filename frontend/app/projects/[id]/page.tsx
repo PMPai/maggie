@@ -81,6 +81,10 @@ export default function ProjectDetailPage() {
                 <dt className="text-xs text-slate-500 mb-1">说明</dt>
                 <dd className="text-sm text-slate-800">{project.description || '—'}</dd>
               </div>
+              <div className="col-span-2">
+                <dt className="text-xs text-slate-500 mb-1">特有款说明</dt>
+                <dd className="text-sm text-slate-800">{(project as any).special_fund_description || '无'}</dd>
+              </div>
             </dl>
           </div>
         </Card>

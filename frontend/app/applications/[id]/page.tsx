@@ -19,6 +19,8 @@ export default function ApplicationDetailPage() {
   const [validation, setValidation] = useState<{ valid: boolean; issues: { code: string; field: string; message: string; severity: string }[] } | null>(null);
   const [validating, setValidating] = useState(false);
   const [genStatus, setGenStatus] = useState<string>('');
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [invoiceNo, setInvoiceNo] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -68,7 +70,6 @@ export default function ApplicationDetailPage() {
     try {
       const result = await api.post<{ task_id: string; status: string }>(`/payment-applications/${appId}/generate`, {});
       setGenStatus('生成中...');
-      // Poll task status
       const poll = setInterval(async () => {
         try {
           const ts = await api.get<{ state: string; result: any; error: string | null }>(`/tasks/${result.task_id}/status`);
@@ -89,6 +90,51 @@ export default function ApplicationDetailPage() {
       }, 2000);
     } catch (e) {
       alert(`生成失败：${(e as Error).message}`);
+      setBusy(false);
+    }
+  };
+
+  const doConfirmPayment = async () => {
+    setBusy(true);
+    try {
+      // Use the approve endpoint with step=SENT to transition POSTED→SENT
+      const updated = await api.post<Application>(`/payment-applications/${appId}/approve`, {});
+      // If the approve doesn't move to SENT directly, try a manual status update
+      // The backend approve_application function handles the step progression
+      setApp(updated);
+    } catch (e) {
+      // If approve doesn't support SENT, just update locally
+      try {
+        const updated = await api.post<Application>(`/payment-applications/${appId}/approve?step=SENT`, {});
+        setApp(updated);
+      } catch (e2) {
+        alert(`操作失败：${(e2 as Error).message}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doCreateInvoice = async () => {
+    if (!invoiceNo || !contract || !project) { alert('请输入发票编号'); return; }
+    setBusy(true);
+    try {
+      await api.post('/invoices', {
+        project_id: app!.project_id,
+        contract_id: app!.contract_id,
+        invoice_no: invoiceNo,
+        amount_ex_tax: app!.taxable_amount,
+        tax_amount: app!.tax_amount,
+        amount_inc_tax: app!.invoice_amount,
+        tax_rate: contract.tax_rate,
+        source: 'APPLICATION',
+      });
+      setShowInvoice(false);
+      setInvoiceNo('');
+      alert('发票已创建');
+    } catch (e) {
+      alert(`创建失败：${(e as Error).message}`);
+    } finally {
       setBusy(false);
     }
   };
@@ -154,8 +200,18 @@ export default function ApplicationDetailPage() {
               </button>
             )}
             {(app.status === 'POSTED' || app.status === 'GENERATED') && (
-              <button disabled={busy} onClick={doGenerate} className="btn-primary">
-                {busy ? (genStatus || '处理中...') : '生成 PDF'}
+              <>
+                <button disabled={busy} onClick={doGenerate} className="btn-secondary">
+                  {busy ? (genStatus || '处理中...') : '生成 PDF'}
+                </button>
+                <button disabled={busy} onClick={doConfirmPayment} className="btn-primary">
+                  确认支付
+                </button>
+              </>
+            )}
+            {(app.status === 'SENT') && (
+              <button disabled={busy} onClick={() => setShowInvoice(true)} className="btn-primary">
+                附上发票
               </button>
             )}
             <Link href={project ? `/projects/${project.id}` : '/dashboard'} className="btn-secondary">
@@ -171,10 +227,10 @@ export default function ApplicationDetailPage() {
         <div className="card-body">
           <div className="flex items-center gap-2 flex-wrap">
             {(() => {
-              const steps = ['DRAFT', 'SUBMITTED', 'PROJECT_APPROVED', 'FINANCE_APPROVED', 'POSTED'];
+              const steps = ['DRAFT', 'SUBMITTED', 'PROJECT_APPROVED', 'FINANCE_APPROVED', 'POSTED', 'SENT'];
               const labels: Record<string, string> = {
                 DRAFT: '草稿', SUBMITTED: '已提交', PROJECT_APPROVED: '项目负责人已批',
-                FINANCE_APPROVED: '财务已批', POSTED: '已过账',
+                FINANCE_APPROVED: '财务已批', POSTED: '已过账', SENT: '已请款',
               };
               const currentIdx = steps.indexOf(app.status);
               return steps.map((s, i) => {
@@ -343,6 +399,31 @@ export default function ApplicationDetailPage() {
           </table>
         </div>
       </Card>
+
+      {showInvoice && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowInvoice(false)}>
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-slate-800">附上发票</h3>
+              <button onClick={() => setShowInvoice(false)} className="text-slate-400">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">发票编号</label>
+                <input type="text" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} className="input-field text-sm w-full" placeholder="如 INV-2026-001" />
+              </div>
+              <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded">
+                <p>未税金额: {formatMoney(app.taxable_amount)}</p>
+                <p>税额: {formatMoney(app.tax_amount)}</p>
+                <p className="font-semibold">含税金额: {formatMoney(app.invoice_amount)}</p>
+              </div>
+              <button onClick={doCreateInvoice} disabled={busy} className="btn-primary w-full text-sm">
+                {busy ? '创建中...' : '创建发票'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

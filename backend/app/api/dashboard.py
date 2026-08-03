@@ -291,3 +291,28 @@ async def get_cash_flow(current: CurrentUser = Depends(get_current_user), db: As
     months = sorted(months_map.values(), key=lambda x: x["month"])
     # Convert decimals to strings for JSON
     return {"months": [{"month": m["month"], "expected": str(m["expected"]), "actual": str(m["actual"])} for m in months]}
+
+
+@router.get("/payment-trend")
+async def get_payment_trend(current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Monthly posted payment application amounts — trend over time."""
+    from app.models.billing import PaymentApplication, ApplicationStatus
+
+    project_ids = await _accessible_project_ids(current, db)
+    if not project_ids:
+        return {"months": []}
+
+    rows = (await db.execute(
+        select(
+            func.to_char(PaymentApplication.application_date, 'YYYY-MM').label('month'),
+            func.sum(PaymentApplication.invoice_amount).label('amount'),
+        )
+        .where(
+            PaymentApplication.project_id.in_(project_ids),
+            PaymentApplication.status.in_([ApplicationStatus.POSTED, ApplicationStatus.GENERATED, ApplicationStatus.SENT]),
+        )
+        .group_by('month')
+        .order_by('month')
+    )).all()
+
+    return {"months": [{"month": r.month, "amount": str(r.amount or 0)} for r in rows]}

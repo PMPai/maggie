@@ -31,6 +31,7 @@ class ProjectCreate(BaseModel):
     planned_end_date: date | None = None
     currency: str = "TWD"
     default_tax_rate: Decimal = Decimal("0.05")
+    special_fund_description: str | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -41,6 +42,7 @@ class ProjectResponse(BaseModel):
     status: str
     currency: str
     default_tax_rate: Decimal
+    special_fund_description: str | None = None
 
 
 class ProjectMemberAdd(BaseModel):

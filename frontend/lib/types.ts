@@ -14,6 +14,7 @@ export interface Project {
   status: string;
   currency: string;
   default_tax_rate: string;
+  special_fund_description?: string | null;
 }
 
 export interface Contract {

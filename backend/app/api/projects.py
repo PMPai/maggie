@@ -17,12 +17,13 @@ async def create_project(req: ProjectCreate, current: CurrentUser = Depends(get_
         internal_project_code=req.internal_project_code, project_name=req.project_name,
         description=req.description, start_date=req.start_date, planned_end_date=req.planned_end_date,
         currency=req.currency, default_tax_rate=req.default_tax_rate,
+        special_fund_description=req.special_fund_description,
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(project)
     await db.commit()
     await db.refresh(project)
-    return ProjectResponse(id=str(project.id), internal_project_code=project.internal_project_code, project_name=project.project_name, description=project.description, status=project.status, currency=project.currency, default_tax_rate=project.default_tax_rate)
+    return ProjectResponse(id=str(project.id), internal_project_code=project.internal_project_code, project_name=project.project_name, description=project.description, status=project.status, currency=project.currency, default_tax_rate=project.default_tax_rate, special_fund_description=project.special_fund_description)
 
 
 @router.get("", response_model=list[ProjectResponse])
@@ -39,7 +40,7 @@ async def list_projects(page: int = Query(1, ge=1), size: int = Query(20, ge=1, 
             .where(ProjectMember.user_id == current.user.id, ProjectMember.status == "ACTIVE", Project.deleted_at.is_(None))
             .offset((page - 1) * size).limit(size)
         )
-    return [ProjectResponse(id=str(p.id), internal_project_code=p.internal_project_code, project_name=p.project_name, description=p.description, status=p.status, currency=p.currency, default_tax_rate=p.default_tax_rate) for p in result.scalars().all()]
+    return [ProjectResponse(id=str(p.id), internal_project_code=p.internal_project_code, project_name=p.project_name, description=p.description, status=p.status, currency=p.currency, default_tax_rate=p.default_tax_rate, special_fund_description=p.special_fund_description) for p in result.scalars().all()]
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -51,7 +52,7 @@ async def get_project(project_id: str, current: CurrentUser = Depends(get_curren
     p = result.scalar_one_or_none()
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
-    return ProjectResponse(id=str(p.id), internal_project_code=p.internal_project_code, project_name=p.project_name, description=p.description, status=p.status, currency=p.currency, default_tax_rate=p.default_tax_rate)
+    return ProjectResponse(id=str(p.id), internal_project_code=p.internal_project_code, project_name=p.project_name, description=p.description, status=p.status, currency=p.currency, default_tax_rate=p.default_tax_rate, special_fund_description=p.special_fund_description)
 
 
 @router.post("/{project_id}/members", response_model=ProjectMemberResponse)

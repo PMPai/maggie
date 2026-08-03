@@ -98,3 +98,25 @@ async def list_documents(project_id: str = Query(...), current: CurrentUser = De
         select(Document).where(Document.project_id == pid, Document.deleted_at.is_(None))
     )
     return [_to_response(d) for d in result.scalars().all()]
+
+
+@router.post("/{document_id}/link")
+async def link_document(document_id: str, req: dict, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Link a document to a business record (APPLICATION, CONTRACT, etc.)."""
+    from app.models.document import DocumentLink
+    did = uuid.UUID(document_id)
+    doc = (await db.execute(select(Document).where(Document.id == did, Document.deleted_at.is_(None)))).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.project_id:
+        await require_project_member(doc.project_id, current, db)
+
+    link_type = req.get("link_type", "APPLICATION")
+    linked_id = req.get("linked_id")
+
+    link = DocumentLink(
+        document_id=did, link_type=link_type, linked_id=uuid.UUID(linked_id),
+    )
+    db.add(link)
+    await db.commit()
+    return {"id": str(link.id), "document_id": str(did), "link_type": link_type, "linked_id": linked_id}
