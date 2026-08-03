@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from decimal import Decimal
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
@@ -12,6 +13,25 @@ from app.schemas.standard import (
 from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/standard-items", tags=["standard-items"])
+
+
+async def _get_latest_cost(item_id, db) -> Decimal | None:
+    """Get the latest effective StandardCostVersion.unit_cost for a standard item."""
+    result = await db.execute(
+        select(StandardCostVersion)
+        .where(StandardCostVersion.standard_item_id == item_id, StandardCostVersion.status == "ACTIVE")
+        .order_by(StandardCostVersion.effective_from.desc().nulls_last(), StandardCostVersion.version_no.desc())
+    )
+    scv = result.scalars().first()
+    return scv.unit_cost if scv else None
+
+
+def _to_response(item: StandardItem, latest_cost: Decimal | None = None) -> StandardItemResponse:
+    return StandardItemResponse(
+        id=str(item.id), code=item.code, name=item.name, category=item.category,
+        unit=item.unit, description=item.description, is_active=item.is_active,
+        sort_order=item.sort_order, latest_unit_cost=latest_cost,
+    )
 
 
 @router.post("", response_model=StandardItemResponse)
@@ -34,10 +54,7 @@ async def create_standard_item(req: StandardItemCreate, current: CurrentUser = D
     ))
     await db.commit()
     await db.refresh(item)
-    return StandardItemResponse(
-        id=str(item.id), code=item.code, name=item.name, category=item.category,
-        unit=item.unit, description=item.description, is_active=item.is_active, sort_order=item.sort_order,
-    )
+    return _to_response(item, None)
 
 
 @router.get("", response_model=list[StandardItemResponse])
@@ -46,10 +63,8 @@ async def list_standard_items(page: int = Query(1, ge=1), size: int = Query(20, 
         select(StandardItem).where(StandardItem.organization_id == current.organization_id, StandardItem.deleted_at.is_(None))
         .offset((page - 1) * size).limit(size)
     )
-    return [StandardItemResponse(
-        id=str(i.id), code=i.code, name=i.name, category=i.category, unit=i.unit,
-        description=i.description, is_active=i.is_active, sort_order=i.sort_order,
-    ) for i in result.scalars().all()]
+    items = result.scalars().all()
+    return [_to_response(i, await _get_latest_cost(i.id, db)) for i in items]
 
 
 @router.get("/{item_id}", response_model=StandardItemResponse)
@@ -60,10 +75,7 @@ async def get_standard_item(item_id: str, current: CurrentUser = Depends(get_cur
     item = result.scalars().first()
     if not item:
         raise HTTPException(status_code=404, detail="StandardItem not found")
-    return StandardItemResponse(
-        id=str(item.id), code=item.code, name=item.name, category=item.category, unit=item.unit,
-        description=item.description, is_active=item.is_active, sort_order=item.sort_order,
-    )
+    return _to_response(item, await _get_latest_cost(item.id, db))
 
 
 @router.put("/{item_id}", response_model=StandardItemResponse)
@@ -92,10 +104,7 @@ async def update_standard_item(item_id: str, req: StandardItemCreate, current: C
     ))
     await db.commit()
     await db.refresh(item)
-    return StandardItemResponse(
-        id=str(item.id), code=item.code, name=item.name, category=item.category, unit=item.unit,
-        description=item.description, is_active=item.is_active, sort_order=item.sort_order,
-    )
+    return _to_response(item, await _get_latest_cost(item.id, db))
 
 
 @router.post("/{item_id}/aliases", response_model=StandardItemAliasResponse)

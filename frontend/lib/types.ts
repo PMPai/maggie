@@ -184,6 +184,7 @@ export interface StandardItem {
   unit: string;
   description: string;
   is_active: boolean;
+  latest_unit_cost?: string | number | null;
 }
 
 export interface ItemMapping {

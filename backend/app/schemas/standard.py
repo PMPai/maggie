@@ -23,6 +23,7 @@ class StandardItemResponse(BaseModel):
     description: str | None
     is_active: bool
     sort_order: int
+    latest_unit_cost: Decimal | None = None
 
 
 class StandardItemAliasCreate(BaseModel):

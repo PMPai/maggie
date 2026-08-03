@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import type { Contract, ContractItem, ItemMapping, StandardItem } from '@/lib/types';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatNumber } from '@/components/ui/common';
+import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatNumber, formatMoney } from '@/components/ui/common';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 
 export default function MappingPage() {
@@ -183,16 +183,29 @@ export default function MappingPage() {
               <div className="max-h-80 overflow-y-auto space-y-1">
                 {filteredStandards.map(si => {
                   const unitMatch = selectedItem.unit === si.unit;
+                  const refCost = si.latest_unit_cost ? parseFloat(String(si.latest_unit_cost)) : null;
+                  const contractPrice = parseFloat(selectedItem.unit_price) || 0;
+                  const priceDiff = refCost !== null ? contractPrice - refCost : null;
                   return (
                     <div key={si.id} className="flex items-center justify-between p-2 rounded hover:bg-slate-50">
                       <div>
                         <p className="text-sm text-slate-700">{si.name}</p>
                         <p className="text-xs text-slate-400">{si.code} · {si.unit} · {si.category}</p>
-                        {selectedItem.unit && si.unit && (
-                          <span className={`text-xs ${unitMatch ? 'text-green-600' : 'text-orange-600'}`}>
-                            {unitMatch ? '单位兼容' : '单位不同'}
-                          </span>
-                        )}
+                        <div className="flex gap-3 mt-1">
+                          {selectedItem.unit && si.unit && (
+                            <span className={`text-xs ${unitMatch ? 'text-green-600' : 'text-orange-600'}`}>
+                              {unitMatch ? '单位兼容' : '单位不同'}
+                            </span>
+                          )}
+                          {refCost !== null && (
+                            <span className="text-xs text-slate-500">
+                              参考价 {formatMoney(refCost)}
+                              {priceDiff !== null && priceDiff !== 0 && (
+                                <span className={priceDiff > 0 ? 'text-green-600' : 'text-red-600'}> (差{formatMoney(Math.abs(priceDiff))}{priceDiff > 0 ? '↑' : '↓'})</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={() => handleCreateMapping(si.id)}
