@@ -12,10 +12,18 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 
   // Attach CSRF token for state-changing requests (skip multipart — upload uses raw fetch)
   if (method !== 'GET' && method !== 'HEAD' && headers['Content-Type'] === 'application/json') {
-    const csrfCookie = document.cookie.split('; ').find(c => c.startsWith('csrf_token='));
-    if (csrfCookie) {
-      headers['X-CSRF-Token'] = csrfCookie.split('=')[1];
+    // Guard against SSR — document is undefined on server
+    if (typeof document !== 'undefined') {
+      const csrfCookie = document.cookie.split('; ').find(c => c.startsWith('csrf_token='));
+      if (csrfCookie) {
+        headers['X-CSRF-Token'] = csrfCookie.split('=')[1];
+      }
     }
+  }
+
+  // Guard against SSR — fetch may not be available during server render
+  if (typeof fetch === 'undefined') {
+    throw new ApiError(500, 'fetch not available (SSR)');
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
