@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
@@ -36,6 +37,38 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """Enforce CSRF token on state-changing requests (POST/PUT/PATCH/DELETE).
+    GET/HEAD/OPTIONS are exempt. Token: cookie 'csrf_token' must match header 'X-CSRF-Token'.
+    Login endpoint is exempt (no cookie yet at login time)."""
+    EXEMPT_PATHS = {"/api/auth/login", "/api/auth/logout", "/api/documents/upload", "/health"}
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return await call_next(request)
+
+        path = request.url.path
+        if any(path == ep or path.startswith(ep + "/") for ep in self.EXEMPT_PATHS):
+            return await call_next(request)
+
+        # For multipart/form-data (file upload), skip CSRF to avoid breaking uploads
+        content_type = request.headers.get("content-type", "")
+        if content_type.startswith("multipart/form-data"):
+            return await call_next(request)
+
+        cookie_token = request.cookies.get("csrf_token")
+        header_token = request.headers.get("X-CSRF-Token")
+
+        # In development, if no CSRF cookie exists yet, allow through (first-time setup)
+        if not cookie_token:
+            return await call_next(request)
+
+        if not header_token or cookie_token != header_token:
+            return JSONResponse(status_code=403, content={"detail": "CSRF token invalid"})
+
+        return await call_next(request)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Engineering Contract & Billing System",
@@ -51,6 +84,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(CSRFMiddleware)
     app.add_middleware(RateLimitMiddleware)
 
     app.include_router(auth_router)

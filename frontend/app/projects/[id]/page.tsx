@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
 
-type Tab = 'overview' | 'contracts' | 'applications' | 'files' | 'variations' | 'retention' | 'deductions' | 'invoices' | 'catalog' | 'mapping' | 'budget';
+type Tab = 'overview' | 'contracts' | 'applications' | 'files' | 'variations' | 'retention' | 'deductions' | 'invoices' | 'catalog' | 'mapping' | 'budget' | 'audit';
 
 const TAB_LABELS: Record<Tab, string> = {
   overview: '概况',
@@ -21,9 +21,10 @@ const TAB_LABELS: Record<Tab, string> = {
   catalog: '标准项目',
   mapping: '映射',
   budget: 'Master Budget',
+  audit: '审计记录',
 };
 
-const LEDGER_TABS: Tab[] = ['variations', 'retention', 'deductions', 'invoices', 'catalog', 'mapping', 'budget', 'files'];
+const LEDGER_TABS: Tab[] = ['variations', 'retention', 'deductions', 'invoices', 'catalog', 'mapping', 'budget', 'files', 'audit'];
 
 export default function ProjectDetailPage() {
   const { user, loading } = useAuth();

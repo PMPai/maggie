@@ -7,10 +7,21 @@ class ApiError extends Error {
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+  const method = options?.method || 'GET';
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) };
+
+  // Attach CSRF token for state-changing requests (skip multipart — upload uses raw fetch)
+  if (method !== 'GET' && method !== 'HEAD' && headers['Content-Type'] === 'application/json') {
+    const csrfCookie = document.cookie.split('; ').find(c => c.startsWith('csrf_token='));
+    if (csrfCookie) {
+      headers['X-CSRF-Token'] = csrfCookie.split('=')[1];
+    }
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
