@@ -39,7 +39,7 @@ export default function ProjectAuditPage() {
                   <td className="font-mono text-xs text-slate-500">{l.created_at ? new Date(l.created_at).toLocaleString('zh-TW') : '—'}</td>
                   <td><StatusBadge status={l.action} /></td>
                   <td>{l.resource_type}</td>
-                  <td className="text-xs text-slate-500 max-w-md truncate">{typeof l.detail === 'string' ? l.detail.substring(0, 80) : '—'}</td>
+                    <td className="text-xs text-slate-500 max-w-md truncate">{l.detail ? (typeof l.detail === 'string' ? l.detail.substring(0, 80) : JSON.stringify(l.detail).substring(0, 80)) : '—'}</td>
                 </tr>
               ))}
             </tbody>

@@ -120,7 +120,7 @@ export default function AuditLogPage() {
                     <td><StatusBadge status={log.action} /></td>
                     <td>{log.resource_type || '—'}</td>
                     <td className="font-mono text-xs">{log.resource_id ? log.resource_id.substring(0, 8) + '...' : '—'}</td>
-                    <td className="text-xs text-slate-500 max-w-xs truncate">{log.detail || '—'}</td>
+                    <td className="text-xs text-slate-500 max-w-xs truncate">{log.detail ? (typeof log.detail === 'string' ? log.detail : JSON.stringify(log.detail)) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
