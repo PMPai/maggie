@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 const navItems = [
@@ -71,8 +72,13 @@ export function Sidebar() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { loading } = useAuth();
+  const [mounted, setMounted] = useState(false);
 
-  if (pathname === '/') return <>{children}</>;
+  useEffect(() => { setMounted(true); }, []);
+
+  // During SSR and first client render, render children bare to avoid hydration mismatch.
+  // After mount, apply the full shell for non-login pages.
+  if (!mounted || pathname === '/') return <>{children}</>;
 
   return (
     <div className="flex min-h-screen">
