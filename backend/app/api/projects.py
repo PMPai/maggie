@@ -6,6 +6,7 @@ from app.deps import get_current_user, CurrentUser
 from app.models.project import Project, ProjectMember
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectMemberAdd, ProjectMemberResponse
 from app.models.identity import UserRoleEnum
+from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -21,6 +22,15 @@ async def create_project(req: ProjectCreate, current: CurrentUser = Depends(get_
         created_by=current.user.id, updated_by=current.user.id,
     )
     db.add(project)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="CREATE",
+        resource_type="project",
+        resource_id=str(project.id),
+        detail={"project_code": req.internal_project_code, "project_name": req.project_name},
+    ))
     await db.commit()
     await db.refresh(project)
     return ProjectResponse(id=str(project.id), internal_project_code=project.internal_project_code, project_name=project.project_name, description=project.description, status=project.status, currency=project.currency, default_tax_rate=project.default_tax_rate, special_fund_description=project.special_fund_description)
@@ -61,6 +71,15 @@ async def add_member(project_id: str, req: ProjectMemberAdd, current: CurrentUse
     pid = _uuid.UUID(project_id)
     member = ProjectMember(project_id=pid, user_id=_uuid.UUID(req.user_id), project_role=req.project_role, created_by=current.user.id, updated_by=current.user.id)
     db.add(member)
+    await db.flush()
+    db.add(AuditLog(
+        organization_id=current.organization_id,
+        user_id=current.user.id,
+        action="ADD_MEMBER",
+        resource_type="project",
+        resource_id=str(pid),
+        detail={"user_id": req.user_id, "role": req.project_role},
+    ))
     await db.commit()
     await db.refresh(member)
     return ProjectMemberResponse(id=str(member.id), user_id=str(member.user_id), project_role=member.project_role, status=member.status)
