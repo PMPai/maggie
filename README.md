@@ -30,9 +30,9 @@ Engineering Contract & Payment Application Management System — a multi-project
 | 前端 | Next.js 14 (React + TypeScript), Tailwind CSS | SPA 式内部管理界面，Data-Dense Dashboard 设计风格，侧边栏导航 |
 | 后端 API | FastAPI (Python 3.12), SQLAlchemy 2.x, Pydantic v2 | RESTful API，RBAC 权限控制，HttpOnly cookie 认证 |
 | 数据库 | PostgreSQL 16 + pgvector | 业务数据 + 可选向量检索（LLM 匹配） |
-| 缓存/消息 | Redis 7 | Celery broker + result backend（Phase 2 暂未启用 worker） |
-| 异步任务 | Celery | PDF 生成、哈希计算、LLM 匹配（Phase 3 启用） |
-| 部署 | Docker Compose | 4 个服务（postgres, redis, api, frontend），一键启动 |
+| 缓存/消息 | Redis 7 | Celery broker + result backend |
+| 异步任务 | Celery | PDF/Excel 生成、OCR 与 LLM 匹配 |
+| 部署 | Docker Compose | 5 个服务（postgres、redis、api、worker、frontend），一键启动 |
 
 详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -83,7 +83,7 @@ docker compose up -d --build frontend
 
 首次 API 构建约 2-3 分钟。前端使用 `node:20-alpine` + `npm run dev` 模式，首次启动约 30 秒（含 `npm install`）。
 
-> **注意**：Playwright Chromium 安装已在 Dockerfile 中注释（Debian 12 字体包兼容问题）。PDF 生成功能在 Phase 3 修复。Worker 服务已注释（`app.tasks.celery_app` 尚未实现）。
+> **访问说明**：`http://localhost:3000` 是 Maggie 的网页系统；`http://localhost:8000/health` 仅为后端健康检查，会显示 JSON。Worker 已在 `docker-compose.yml` 中启用。
 
 启动后：
 
@@ -159,6 +159,7 @@ Alembic 管理 schema 迁移，共 16 个版本（Phase 1 + Phase 2 + Phase 3）
 | 014 | 匹配审核：matching_reviews | Phase 2 |
 | 015 | DB 视图：8 个报表视图 (v_contract_item_balances 等) | Phase 3 |
 | 016 | 文档模板：document_templates, generated_documents | Phase 3 |
+| 020 | 群组授权：groups、group_roles、user_groups 与默认群组迁移 | 当前实现 |
 
 **运行迁移：**
 
