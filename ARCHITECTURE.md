@@ -46,6 +46,19 @@ Browser ── HTTPS ──> nginx (frontend static + /api proxy)
                                   └── File service ──> /data/archive (volume)
 ```
 
+### 本地开发访问
+
+Docker Compose 开发环境将前端与 API 分别公开到主机端口：
+
+| 地址 | 用途 |
+|---|---|
+| `http://localhost:3000` | Maggie 网页系统的登录与业务页面；应作为日常使用入口。 |
+| `http://localhost:8000` | FastAPI 后端 API，不提供业务网页。 |
+| `http://localhost:8000/api/docs` | FastAPI Swagger API 文档。 |
+| `http://localhost:8000/health` | 仅健康检查，返回 JSON 状态而非 HTML 页面。 |
+
+浏览器对 `/api/*` 的请求由 Next.js 开发服务器代理至 `api:8000`；前端使用 cookie 凭证访问 API。
+
 ---
 
 ## Docker Compose 服务 (5 个)
