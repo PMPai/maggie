@@ -2,10 +2,12 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { Project, Contract, Application } from '@/lib/types';
+import type { Project, Contract, ContractVersion, Application } from '@/lib/types';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 type Tab = 'overview' | 'contracts' | 'applications' | 'files' | 'variations' | 'retention' | 'deductions' | 'invoices' | 'catalog' | 'mapping' | 'budget' | 'audit';
 
@@ -35,12 +37,74 @@ export default function ProjectDetailPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [tab, setTab] = useState<Tab>('overview');
 
+  // Pending contract versions awaiting approval (DRAFT / UNDER_REVIEW with no approved sibling)
+  const [pendingVersions, setPendingVersions] = useState<ContractVersion[]>([]);
+  const [pendingContractMap, setPendingContractMap] = useState<Record<string, Contract>>({});
+  const [pendingError, setPendingError] = useState('');
+  const [approveTarget, setApproveTarget] = useState<{ contractId: string; versionId: string; label: string } | null>(null);
+  const [approving, setApproving] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     api.get<Project>(`/projects/${projectId}`).then(setProject);
     api.get<Contract[]>(`/contracts?project_id=${projectId}`).then(setContracts);
     api.get<Application[]>(`/payment-applications?project_id=${projectId}`).then(setApplications);
   }, [user, projectId]);
+
+  // When contracts load (or tab switches to contracts), scan each contract for pending versions.
+  useEffect(() => {
+    if (!user || contracts.length === 0) {
+      setPendingVersions([]); setPendingContractMap({}); return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const collected: ContractVersion[] = [];
+        const map: Record<string, Contract> = {};
+        const results = await Promise.all(
+          contracts.map(async (c) => {
+            try {
+              const versions = await api.get<ContractVersion[]>(`/contracts/${c.id}/versions`);
+              // A contract has an approved version if any version is APPROVED, or contract.active_version_id is set.
+              const hasApproved = !!c.active_version_id || versions.some(v => v.status === 'APPROVED');
+              const pending = versions.filter(v => v.status === 'DRAFT' || v.status === 'UNDER_REVIEW');
+              return { contract: c, versions: hasApproved ? [] : pending };
+            } catch { return { contract: c, versions: [] }; }
+          })
+        );
+        for (const { contract, versions } of results) {
+          for (const v of versions) {
+            collected.push(v);
+            map[v.id] = contract;
+          }
+        }
+        if (!cancelled) {
+          setPendingVersions(collected);
+          setPendingContractMap(map);
+          setPendingError('');
+        }
+      } catch (e: any) {
+        if (!cancelled) setPendingError(e?.message || '加载待审版本失败');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, contracts]);
+
+  const handleApprove = async () => {
+    if (!approveTarget) return;
+    setApproving(true);
+    try {
+      await api.post(`/contracts/${approveTarget.contractId}/versions/${approveTarget.versionId}/approve`);
+      // Refresh contracts so pending list re-evaluates
+      const refreshed = await api.get<Contract[]>(`/contracts?project_id=${projectId}`);
+      setContracts(refreshed);
+      setApproveTarget(null);
+    } catch (e: any) {
+      setPendingError(e?.message || '批准失败');
+    } finally {
+      setApproving(false);
+    }
+  };
 
   if (loading || !project) return <div className="p-8">加载中...</div>;
 
@@ -91,33 +155,98 @@ export default function ProjectDetailPage() {
       )}
 
       {tab === 'contracts' && (
-        <Card>
-          <CardHeader title="合同" />
-          <div className="card-body">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>合同编号</th>
-                  <th>名称</th>
-                  <th>税务模式</th>
-                  <th>税率</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contracts.map(c => (
-                  <tr key={c.id}>
-                    <td>{c.external_contract_no}</td>
-                    <td>{c.contract_name}</td>
-                    <td>{c.tax_mode}</td>
-                    <td>{c.tax_rate}</td>
-                    <td><StatusBadge status={c.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <>
+          {pendingVersions.length > 0 && (
+            <Card className="mb-4 border-orange-200">
+              <div className="card-body">
+                <p className="text-orange-700 font-semibold mb-2">待批准合同版本 <span className="ml-1 text-xs font-normal text-slate-500">（项目尚无 APPROVED 版本，Master Budget 等功能不可用）</span></p>
+                {pendingError && <ErrorBanner message={pendingError} onDismiss={() => setPendingError('')} />}
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>合同编号</th>
+                      <th>版本</th>
+                      <th>状态</th>
+                      <th className="text-right">含税金额</th>
+                      <th>变更原因</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingVersions.map(v => {
+                      const c = pendingContractMap[v.id];
+                      const label = `${c?.external_contract_no || '—'} v${v.version_no}`;
+                      const canApprove = v.status === 'UNDER_REVIEW' || v.status === 'DRAFT';
+                      return (
+                        <tr key={v.id} className="bg-orange-50/40">
+                          <td>{c?.external_contract_no || '—'}</td>
+                          <td>v{v.version_no}</td>
+                          <td><StatusBadge status={v.status} /></td>
+                          <td className="num">{formatMoney(v.amount_inc_tax)}</td>
+                          <td className="text-xs text-slate-600">{v.change_reason || '—'}</td>
+                          <td>
+                            {canApprove ? (
+                              <button
+                                onClick={() => setApproveTarget({ contractId: v.contract_id, versionId: v.id, label })}
+                                disabled={approving}
+                                className="btn-primary text-xs"
+                              >
+                                批准此版本
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400">不可批准</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+          <Card>
+            <CardHeader title="合同" />
+            <div className="card-body">
+              {contracts.length === 0 ? (
+                <EmptyState message="暂无合同" />
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>合同编号</th>
+                      <th>名称</th>
+                      <th>税务模式</th>
+                      <th>税率</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contracts.map(c => (
+                      <tr key={c.id}>
+                        <td>{c.external_contract_no}</td>
+                        <td>{c.contract_name}</td>
+                        <td>{c.tax_mode}</td>
+                        <td>{c.tax_rate}</td>
+                        <td><StatusBadge status={c.status} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </Card>
+        </>
+      )}
+
+      {approveTarget && (
+        <ConfirmDialog
+          title="批准合同版本"
+          message={`确认批准 ${approveTarget.label}？批准后该版本成为合同当前生效版本，Master Budget 等功能即可显示数据。`}
+          confirmLabel={approving ? '批准中...' : '确认批准'}
+          onConfirm={handleApprove}
+          onCancel={() => { if (!approving) setApproveTarget(null); }}
+        />
       )}
 
       {tab === 'applications' && (

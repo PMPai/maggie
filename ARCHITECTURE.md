@@ -48,7 +48,7 @@ Browser ── HTTPS ──> nginx (frontend static + /api proxy)
 
 ---
 
-## Docker Compose 服务 (4 个)
+## Docker Compose 服务 (5 个)
 
 | 服务 | 镜像 | 角色 | 端口 |
 |---|---|---|---|
@@ -56,14 +56,16 @@ Browser ── HTTPS ──> nginx (frontend static + /api proxy)
 | `api` | python:3.12-slim + FastAPI | REST API、认证、RBAC、业务逻辑 | 8000 |
 | `postgres` | pgvector/pgvector:pg16 | 业务数据 + 可选向量检索 | 5432 |
 | `redis` | redis:7-alpine | Celery broker + result backend（Phase 3 启用 worker） | 6379 |
+| `worker` | python:3.12-slim + Celery | PDF/Excel、OCR 与 LLM 匹配等异步任务 | — |
 
-**Worker 服务**已在 `docker-compose.yml` 中注释，因 `backend/app/tasks/celery_app.py` 尚未实现。Phase 3 将启用。
+`worker` 与 `api` 共享后端映像、业务源码和 `archive` 数据卷；它使用 Redis 作为任务 broker 与结果后端。
 
 **Playwright Chromium** 安装已在 `backend/Dockerfile` 中注释（Debian 12 字体包 `ttf-unifont` 不再可用）。PDF 生成功能在 Phase 3 修复 Playwright 版本后恢复。
 
 ### 服务依赖关系
 
 - `api` 依赖 `postgres`（健康检查通过）和 `redis`（健康检查通过）。
+- `worker` 依赖 `postgres`（健康检查通过）和 `redis`（健康检查通过）。
 - `frontend` 依赖 `api`。
 - `postgres` 和 `redis` 无外部依赖。
 
@@ -284,6 +286,29 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 
 ---
 
+## 群组化授权与用户管理（当前实现）
+
+### 权限解析
+
+授权仍以既有的细粒度角色为判断依据，但角色不再必须直接绑定在用户上。认证请求会从**有效群组成员关系**解析用户拥有的全部角色：
+
+```text
+User ──< user_groups >── Group ──< group_roles >── Role
+```
+
+- 只有 `ACTIVE` 群组的角色会参与授权；组织边界由群组与成员记录上的 `organization_id` 约束。
+- 若用户没有任何有效群组角色，后端才回退读取历史 `user_roles`，以兼容已有帐号。
+- 角色会归类为 `ADMIN`、`FINANCE`、`LEADER`、`AUDITOR` 或 `VIEWER`；任一管理员类别角色可绕过项目成员检查。
+- `require_role`、`require_category`、`require_admin` 与项目成员检查均在 FastAPI 服务层执行，前端菜单过滤不构成安全边界。
+
+### 数据与管理 API
+
+迁移 `020_groups` 新增 `groups`、`group_roles`、`user_groups`。迁移会为每个有效组织建立默认群组，并将既有用户的直接角色映射为相应的群组成员关系。
+
+- `/api/groups`：仅管理员可管理群组、群组角色及成员；默认群组不可删除或停用，且管理员不能将自己移出最后一个有效管理员群组。
+- `/api/users`：仅管理员可新建、编辑、停用用户、替换其群组成员关系及重设密码。
+- `/api/auth/roles`：登入用户可读取角色清单，供管理界面配置群组角色使用。
+
 ## 前端架构
 
 ### 设计系统 (Design System)
@@ -339,6 +364,8 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
   - `/dashboard`（驾驶舱 — 13 可点击指标卡 + 富项目表 + 最近审计，Phase B）
   - `/inbox`（文件收件箱 — 上传 + OCR 轮询 + 预览/下载，Phase B）
   - `/approvals`（审批与异常中心 — 统一列表 + 行内批准/拒绝，Phase B）
+  - `/my-applications`（我的请款 — 按创建者显示个人请款清单）
+  - `/admin/users`、`/admin/groups`（仅管理员可见的用户与群组管理）
   - `/projects/[id]`（项目详情，11 个标签页：概况、合同、请款、文件、变更、保留款、扣款、发票收款、标准项目、映射、Master Budget）
   - `/projects/[id]/budget`（Master Budget — 15 列树表 + 毛利 + 异常状态，Phase B）
   - `/contracts/[id]/extract`（合同抽取审核 — 左右并排 + 可编辑表单/项目行，Phase B）

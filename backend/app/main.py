@@ -24,6 +24,8 @@ from app.api.reports import router as reports_router
 from app.api.tasks import router as tasks_router
 from app.api.dashboard import router as dashboard_router
 from app.api.master_budget import router as master_budget_router
+from app.api.groups import router as groups_router
+from app.api.users import router as users_router
 
 settings = get_settings()
 
@@ -107,6 +109,8 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router)
     app.include_router(dashboard_router)
     app.include_router(master_budget_router)
+    app.include_router(groups_router)
+    app.include_router(users_router)
 
     @app.get("/health")
     async def health():

@@ -40,7 +40,9 @@ async def list_approvals(resource_type: str = Query(...), resource_id: str = Que
         select(Approval).where(Approval.resource_type == resource_type, Approval.resource_id == uuid.UUID(resource_id))
     )
     return [
-        {"id": str(a.id), "decision": a.decision, "step_order": a.step_order, "decided_at": a.decided_at.isoformat() if a.decided_at else None}
+        {"id": str(a.id), "decision": a.decision, "step_order": a.step_order,
+         "decided_by": str(a.decided_by), "decided_at": a.decided_at.isoformat() if a.decided_at else None,
+         "comment": a.comment}
         for a in result.scalars().all()
     ]
 

@@ -228,13 +228,30 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 ## 9. 数据隔离 (Data Isolation)
 
 - **组织级**：所有业务表含 `organization_id`，服务层强制过滤。
-- **项目级**：用户仅能访问所属 `project_members` 项目（`SYSTEM_ADMIN` 例外）。
+- **项目级**：用户仅能访问所属 `project_members` 项目；拥有管理员类别角色的用户例外。新建项目时，创建者自动加入该项目并取得 `PROJECT_MANAGER` 项目成员身份。
 - **URL 不可绕过**：权限检查在服务层执行，非前端路由。
 - 25-032 数据永不进入 24-023（测试 #18 验证）。
 
 ---
 
-## 10. 变更单管理 (Variation Management) — Phase 2
+## 10. 群组与用户授权 (Group-based Access Control)
+
+### 核心原则：群组授予角色，角色决定权限
+
+- 群组、群组角色与用户群组成员关系分别存放于 `groups`、`group_roles`、`user_groups`；同一组织内群组名称唯一。
+- 只有 `ACTIVE` 群组的角色会生效。用户拥有一个或多个有效群组时，系统汇总这些群组的角色；仅在没有有效群组角色时，才回退读取历史 `user_roles`。
+- 角色归入五类：`ADMIN`（系统/合同管理员）、`FINANCE`（财务与造价）、`LEADER`（项目负责人/项目人员）、`AUDITOR`、`VIEWER`。类别用于导航展示和类别级授权，细粒度业务授权仍由角色判断。
+- 管理员类别可管理用户与群组，并可绕过项目成员限制；其余用户仍须符合具体 API 的角色及项目成员要求。
+
+### 默认群组与保护规则
+
+- 迁移会为每个有效组织建立管理员、财务、项目组长、项目人员、审计及只读默认群组，并将既有直接角色映射至对应群组成员关系。
+- 默认群组不可删除或停用。自助移除管理员成员时，系统不得让操作者离开最后一个有效管理员群组。
+- 用户、群组、群组角色与群组成员的管理 API 均要求管理员授权；前端隐藏菜单仅为操作便利，不能取代后端授权检查。
+
+---
+
+## 11. 变更单管理 (Variation Management) — Phase 2
 
 ### 核心原则：未批准变更不可请款
 
@@ -245,7 +262,7 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 11. 扣款税务处理 (Deduction Tax) — Phase 2
+## 12. 扣款税务处理 (Deduction Tax) — Phase 2
 
 ### 核心原则：按税务处理类型计算
 
@@ -261,7 +278,7 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 12. 发票与收款差异 (Invoice/Collection Variance) — Phase 2
+## 13. 发票与收款差异 (Invoice/Collection Variance) — Phase 2
 
 ### 核心原则：差异显式记录，不自动核销
 
@@ -282,7 +299,7 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 13. 标准项目匹配 (Standard Item Matching) — Phase 2
+## 14. 标准项目匹配 (Standard Item Matching) — Phase 2
 
 ### 匹配管道
 
@@ -303,7 +320,7 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 14. 报表与数据库视图 (Reports & DB Views) — Phase 3
+## 15. 报表与数据库视图 (Reports & DB Views) — Phase 3
 
 ### 8 个 SQL 视图（迁移 015）
 
@@ -329,7 +346,7 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 15. 备份一致性检查 (Backup Consistency) — Phase 3
+## 16. 备份一致性检查 (Backup Consistency) — Phase 3
 
 ### 核心原则：DB 完整性可验证
 
@@ -355,7 +372,7 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 16. 文档模板管理 (Document Template Management) — Phase 3
+## 17. 文档模板管理 (Document Template Management) — Phase 3
 
 ### 数据模型
 

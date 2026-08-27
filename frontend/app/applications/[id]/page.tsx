@@ -15,6 +15,7 @@ export default function ApplicationDetailPage() {
   const [lines, setLines] = useState<ApplicationLine[]>([]);
   const [contract, setContract] = useState<Contract | null>(null);
   const [project, setProject] = useState<Project | null>(null);
+  const [approvals, setApprovals] = useState<{id: string; decision: string; step_order: number; decided_by: string; decided_at: string; comment?: string}[]>([]);
   const [busy, setBusy] = useState(false);
   const [validation, setValidation] = useState<{ valid: boolean; issues: { code: string; field: string; message: string; severity: string }[] } | null>(null);
   const [validating, setValidating] = useState(false);
@@ -27,6 +28,9 @@ export default function ApplicationDetailPage() {
     api.get<Application>(`/payment-applications/${appId}`).then(async a => {
       setApp(a);
       api.get<ApplicationLine[]>(`/payment-applications/${appId}/lines`).then(setLines);
+      api.get<{id: string; decision: string; step_order: number; decided_by: string; decided_at: string; comment?: string}[]>(
+        `/approvals?resource_type=PAYMENT_APPLICATION&resource_id=${appId}`
+      ).then(setApprovals).catch(() => setApprovals([]));
       try {
         const c = await api.get<Contract>(`/contracts/${a.contract_id}`);
         setContract(c);
@@ -43,7 +47,11 @@ export default function ApplicationDetailPage() {
   const doTransition = async (action: 'submit' | 'approve' | 'post') => {
     setBusy(true);
     try {
-      const updated = await api.post<Application>(`/payment-applications/${appId}/${action}`, {});
+      let url = `/payment-applications/${appId}/${action}`;
+      if (action === 'approve') {
+        url += app.status === 'SUBMITTED' ? '?step=project' : '?step=finance';
+      }
+      const updated = await api.post<Application>(url, {});
       setApp(updated);
     } catch (e) {
       alert(`操作失败：${(e as Error).message}`);
@@ -256,6 +264,38 @@ export default function ApplicationDetailPage() {
           </div>
         </div>
       </Card>
+
+      {approvals.length > 0 && (
+        <Card>
+          <CardHeader title="审批记录" />
+          <div className="card-body">
+            <table className="table table-sm">
+              <thead>
+                <tr>
+                  <th>审批步骤</th>
+                  <th>审批结果</th>
+                  <th>审批人</th>
+                  <th>审批时间</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvals.map(a => (
+                  <tr key={a.id}>
+                    <td>{a.step_order === 1 ? '项目负责人' : a.step_order === 2 ? '财务复核' : `步骤 ${a.step_order}`}</td>
+                    <td className={a.decision === 'APPROVED' ? 'text-green-600' : 'text-red-600'}>
+                      {a.decision === 'APPROVED' ? '已批准' : '已拒绝'}
+                    </td>
+                    <td>{a.decided_by}</td>
+                    <td>{a.decided_at ? new Date(a.decided_at).toLocaleString('zh-CN') : '-'}</td>
+                    <td>{a.comment || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {validation && (
         <Card>

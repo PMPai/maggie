@@ -50,6 +50,7 @@ async def get_master_budget(
             select(Contract)
             .where(Contract.project_id == pid, Contract.deleted_at.is_(None))
             .order_by(Contract.created_at)
+            .limit(1)
         )).scalar_one_or_none()
     if not contract:
         raise HTTPException(status_code=404, detail="No contract found for project")

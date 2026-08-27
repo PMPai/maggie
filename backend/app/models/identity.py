@@ -7,15 +7,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, AuditMixin
 
 
-class Organization(Base, TimestampMixin):
-    __tablename__ = "organizations"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
-    name: Mapped[str] = mapped_column(String(256), nullable=False)
-    default_currency: Mapped[str] = mapped_column(String(8), nullable=False, default="TWD")
-    default_timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Asia/Taipei")
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
+class GroupCategory(enum.Enum):
+    ADMIN = "ADMIN"
+    FINANCE = "FINANCE"
+    LEADER = "LEADER"
+    AUDITOR = "AUDITOR"
+    VIEWER = "VIEWER"
 
 
 class UserRoleEnum(enum.Enum):
@@ -28,6 +25,17 @@ class UserRoleEnum(enum.Enum):
     FINANCE_USER = "FINANCE_USER"
     AUDITOR = "AUDITOR"
     VIEWER = "VIEWER"
+
+
+class Organization(Base, TimestampMixin):
+    __tablename__ = "organizations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    default_currency: Mapped[str] = mapped_column(String(8), nullable=False, default="TWD")
+    default_timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Asia/Taipei")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
 
 
 class User(Base, TimestampMixin, AuditMixin):
@@ -56,6 +64,59 @@ class Role(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(Enum(UserRoleEnum), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+
+class Group(Base, TimestampMixin):
+    __tablename__ = "groups"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    category: Mapped[GroupCategory] = mapped_column(Enum(GroupCategory), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_groups_org_name"),
+    )
+
+
+class GroupRole(Base, TimestampMixin):
+    __tablename__ = "group_roles"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
+    )
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("group_id", "role_id", name="uq_group_roles"),
+    )
+
+
+class UserGroup(Base, TimestampMixin):
+    __tablename__ = "user_groups"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "group_id", name="uq_user_groups"),
+    )
 
 
 class UserRole(Base, TimestampMixin):

@@ -6,13 +6,14 @@ class ApiError extends Error {
   }
 }
 
-async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const method = options?.method || 'GET';
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) };
-
-  // Attach CSRF token for state-changing requests (skip multipart — upload uses raw fetch)
+/**
+ * Build request headers, attaching the CSRF token from document.cookie
+ * for state-changing requests.  Called fresh on each fetch so that a
+ * rotated csrf_token (after /auth/refresh) is picked up on retry.
+ */
+function buildHeaders(method: string, extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
   if (method !== 'GET' && method !== 'HEAD' && headers['Content-Type'] === 'application/json') {
-    // Guard against SSR — document is undefined on server
     if (typeof document !== 'undefined') {
       const csrfCookie = document.cookie.split('; ').find(c => c.startsWith('csrf_token='));
       if (csrfCookie) {
@@ -20,17 +21,59 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
       }
     }
   }
+  return headers;
+}
 
-  // Guard against SSR — fetch may not be available during server render
+/**
+ * Perform a single fetch with credentials and CSRF header.
+ * Does NOT handle 401 — that is the caller's responsibility.
+ */
+async function doFetch(path: string, options?: RequestInit): Promise<Response> {
   if (typeof fetch === 'undefined') {
     throw new ApiError(500, 'fetch not available (SSR)');
   }
-
-  const res = await fetch(`${API_BASE}${path}`, {
+  const method = options?.method || 'GET';
+  const headers = buildHeaders(method, options?.headers as Record<string, string>);
+  return fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: 'include',
     headers,
   });
+}
+
+/** Lock so concurrent 401s share a single /auth/refresh call. */
+let refreshing: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    try {
+      const res = await doFetch('/auth/refresh', { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
+/** Paths that should NOT trigger auto-refresh on 401. */
+const NO_REFRESH = ['/auth/login', '/auth/refresh'];
+
+async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+  let res = await doFetch(path, options);
+
+  // Auto-refresh on 401: try /auth/refresh once, then retry the original request.
+  // Skipped for auth endpoints themselves to avoid infinite loops.
+  if (res.status === 401 && !NO_REFRESH.some(p => path.startsWith(p))) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      res = await doFetch(path, options); // re-reads CSRF cookie for the retry
+    }
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(res.status, err.detail || 'API error');

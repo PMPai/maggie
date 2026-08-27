@@ -142,7 +142,7 @@ async def approve_version(contract_id: str, version_id: str, current: CurrentUse
     version = result.scalar_one_or_none()
     if not version:
         raise HTTPException(status_code=404, detail="Version not found")
-    if version.status != ContractVersionStatus.DRAFT.value and version.status != ContractVersionStatus.UNDER_REVIEW.value:
+    if version.status not in (ContractVersionStatus.DRAFT, ContractVersionStatus.UNDER_REVIEW):
         raise HTTPException(status_code=400, detail=f"Cannot approve version in status {version.status}")
 
     # Supersede previous approved version

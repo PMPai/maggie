@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID4
 
 
 class ApplicationLineCreate(BaseModel):
@@ -40,12 +40,13 @@ class ApplicationLineResponse(BaseModel):
 
 
 class ApplicationResponse(BaseModel):
-    id: str
-    project_id: str
-    contract_id: str
+    id: UUID4
+    project_id: UUID4
+    contract_id: UUID4
     application_no: str
     period_no: int
     status: str
+    created_by: UUID4 | None = None
     gross_completed_amount: Decimal
     retention_held_amount: Decimal
     retention_released_amount: Decimal

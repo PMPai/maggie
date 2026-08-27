@@ -135,9 +135,10 @@ export default function ProjectSetupPage() {
     setBusy(true);
     setError('');
     try {
-      // Submit: change status to UNDER_REVIEW
-      await api.patch(`/contracts/contract-versions/${versionId}`, { status: 'UNDER_REVIEW' });
-      // Approve
+      // Directly approve the DRAFT version — the approve endpoint accepts
+      // both DRAFT and UNDER_REVIEW statuses, so the intermediate PATCH to
+      // UNDER_REVIEW (which requires CONTRACT_ADMIN role) is unnecessary and
+      // would block project managers from completing the setup flow.
       await api.post(`/contracts/${contractId}/versions/${versionId}/approve`);
       router.push(`/projects/${projectId}/budget`);
     } catch (e: any) {

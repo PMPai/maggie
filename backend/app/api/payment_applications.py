@@ -95,7 +95,7 @@ async def add_line(app_id: str, req: ApplicationLineCreate, current: CurrentUser
 
     # Calculate
     item_input = ItemInput(
-        item_id=str(item.id), calculation_method=CalculationMethod(item.calculation_method),
+        item_id=str(item.id), calculation_method=CalculationMethod(item.calculation_method.value),
         unit_price=item.unit_price, contract_quantity=item.contract_quantity,
         is_heading=item.is_heading, is_billable=item.is_billable,
         retention_applicable=item.retention_applicable, line_amount=item.line_amount,
@@ -117,7 +117,7 @@ async def add_line(app_id: str, req: ApplicationLineCreate, current: CurrentUser
 
     line_result = calc_line_current(
         item_input, line_input, rule_inputs, contract.tax_rate,
-        TaxMode(contract.tax_mode), RoundingPolicy(contract.rounding_policy), contract.rounding_granularity,
+        TaxMode(contract.tax_mode.value), RoundingPolicy(contract.rounding_policy.value), contract.rounding_granularity,
     )
 
     line = PaymentApplicationLine(
@@ -131,7 +131,7 @@ async def add_line(app_id: str, req: ApplicationLineCreate, current: CurrentUser
         retention_rate=Decimal("0.10") if item.retention_applicable else Decimal("0"),
         retention_held=line_result.retention_held, taxable_amount=line_result.taxable_amount,
         tax_amount=line_result.tax_amount, net_amount=line_result.net_amount,
-        calculation_method=item.calculation_method, user_explanation=req.user_explanation,
+        calculation_method=item.calculation_method.value, user_explanation=req.user_explanation,
         validation_status="VALID" if not line_result.validation_issues else "INVALID",
         created_by=current.user.id, updated_by=current.user.id,
     )
@@ -222,15 +222,25 @@ async def get_application(app_id: str, current: CurrentUser = Depends(get_curren
 
 
 @router.get("", response_model=list[ApplicationResponse])
-async def list_applications(project_id: str = Query(...), current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    pid = uuid.UUID(project_id)
-    await require_project_member(pid, current, db)
+async def list_applications(project_id: str = Query(None), my: bool = Query(False), current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    conditions = [PaymentApplication.deleted_at.is_(None)]
+
+    if project_id:
+        pid = uuid.UUID(project_id)
+        await require_project_member(pid, current, db)
+        conditions.append(PaymentApplication.project_id == pid)
+    elif my:
+        conditions.append(PaymentApplication.created_by == current.user.id)
+    else:
+        conditions.append(PaymentApplication.organization_id == current.organization_id)
+
     result = await db.execute(
-        select(PaymentApplication).where(PaymentApplication.project_id == pid, PaymentApplication.deleted_at.is_(None))
+        select(PaymentApplication).where(*conditions).order_by(PaymentApplication.created_at.desc())
     )
     return [ApplicationResponse(
         id=str(a.id), project_id=str(a.project_id), contract_id=str(a.contract_id),
         application_no=a.application_no, period_no=a.period_no, status=a.status,
+        created_by=str(a.created_by) if a.created_by else None,
         gross_completed_amount=a.gross_completed_amount, retention_held_amount=a.retention_held_amount,
         retention_released_amount=a.retention_released_amount, deduction_amount=a.deduction_amount,
         taxable_amount=a.taxable_amount, tax_amount=a.tax_amount, invoice_amount=a.invoice_amount,
@@ -306,7 +316,7 @@ async def preview_application(req: PreviewRequest, current: CurrentUser = Depend
 
         item_input = ItemInput(
             item_id=str(item.id),
-            calculation_method=CalculationMethod(item.calculation_method),
+            calculation_method=CalculationMethod(item.calculation_method.value),
             unit_price=item.unit_price,
             contract_quantity=item.contract_quantity,
             is_heading=item.is_heading,
@@ -327,8 +337,8 @@ async def preview_application(req: PreviewRequest, current: CurrentUser = Depend
         lr = calc_line_current(
             item_input, line_input, rule_inputs,
             contract.tax_rate,
-            TaxMode(contract.tax_mode),
-            RoundingPolicy(contract.rounding_policy),
+            TaxMode(contract.tax_mode.value),
+            RoundingPolicy(contract.rounding_policy.value),
             contract.rounding_granularity,
         )
         line_results.append(lr)
@@ -338,8 +348,8 @@ async def preview_application(req: PreviewRequest, current: CurrentUser = Depend
         retention_released_amount=Decimal("0"),
         deduction_amount=Decimal("0"),
         tax_rate=contract.tax_rate,
-        tax_mode=TaxMode(contract.tax_mode),
-        rounding_policy=RoundingPolicy(contract.rounding_policy),
+        tax_mode=TaxMode(contract.tax_mode.value),
+        rounding_policy=RoundingPolicy(contract.rounding_policy.value),
         rounding_granularity=contract.rounding_granularity,
     )
 

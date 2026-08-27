@@ -1,6 +1,7 @@
 'use client';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import Link from 'next/link';
 import type { PendingApproval } from '@/lib/types';
@@ -44,6 +45,7 @@ function stripApiPrefix(url: string | null): string | null {
 
 export default function ApprovalsPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [items, setItems] = useState<PendingApproval[]>([]);
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -97,6 +99,11 @@ export default function ApprovalsPage() {
       }
       setItems(prev => prev.filter(i => i !== item));
       setError('');
+      // After approving a contract version, redirect to the project's
+      // Master Budget view so the user sees the approved budget data.
+      if (kind === 'approve' && item.resource_type === 'contract_version' && item.project_id) {
+        router.push(`/projects/${item.project_id}/budget`);
+      }
     } catch (e: any) {
       setError(e?.message || '操作失败');
     }

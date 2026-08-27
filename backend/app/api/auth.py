@@ -102,3 +102,9 @@ async def change_password(req: ChangePasswordRequest, current: CurrentUser = Dep
     ))
     await db.commit()
     return {"message": "password changed"}
+
+
+@router.get("/roles")
+async def list_roles(current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Role).order_by(Role.name))
+    return [{"id": str(r.id), "name": r.name.value} for r in result.scalars().all()]

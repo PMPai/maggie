@@ -72,6 +72,7 @@ export interface Application {
   application_no: string;
   period_no: number;
   status: string;
+  created_by?: string | null;
   gross_completed_amount: string;
   retention_held_amount: string;
   retention_released_amount: string;

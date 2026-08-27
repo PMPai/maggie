@@ -44,6 +44,16 @@ export default function NewApplicationPage() {
       if (contract?.active_version_id) {
         api.get<ContractItem[]>(`/contracts/contract-versions/${contract.active_version_id}/items`).then(setItems);
       }
+      api.get<any[]>(`/payment-applications?project_id=${selectedProject}`).then(apps => {
+        const contractApps = apps.filter((a: any) => a.contract_id === selectedContract);
+        const maxPeriod = contractApps.reduce((max: number, a: any) => Math.max(max, a.period_no || 0), 0);
+        const nextPeriod = maxPeriod + 1;
+        setPeriodNo(nextPeriod);
+        const contract = contracts.find(c => c.id === selectedContract);
+        if (contract && !appNo) {
+          setAppNo(`${contract.external_contract_no}-P${nextPeriod}`);
+        }
+      });
     } else {
       setItems([]);
     }

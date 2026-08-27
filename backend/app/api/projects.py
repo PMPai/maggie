@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser
-from app.models.project import Project, ProjectMember
+from app.models.project import Project, ProjectMember, ProjectMemberRoleEnum
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectMemberAdd, ProjectMemberResponse
 from app.models.identity import UserRoleEnum
 from app.models.approval import AuditLog
@@ -23,6 +23,11 @@ async def create_project(req: ProjectCreate, current: CurrentUser = Depends(get_
     )
     db.add(project)
     await db.flush()
+    db.add(ProjectMember(
+        project_id=project.id, user_id=current.user.id,
+        project_role=ProjectMemberRoleEnum.PROJECT_MANAGER,
+        created_by=current.user.id, updated_by=current.user.id,
+    ))
     db.add(AuditLog(
         organization_id=current.organization_id,
         user_id=current.user.id,

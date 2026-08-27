@@ -4,16 +4,27 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { hasCategory, getUserCategory, categoryLabel, categoryColor } from '@/lib/roles';
 
-const navItems = [
-  { href: '/dashboard', label: '驾驶舱', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-  { href: '/projects', label: '项目管理', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-  { href: '/inbox', label: '文件收件箱', icon: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12' },
-  { href: '/approvals', label: '审批中心', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { href: '/applications/new', label: '新建请款', icon: 'M12 4v16m8-8H4' },
-  { href: '/reports', label: '报表中心', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-  { href: '/audit', label: '审计日志', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+const allNavItems = [
+  { href: '/dashboard', label: '驾驶舱', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', categories: [] },
+  { href: '/projects', label: '项目管理', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', categories: [] },
+  { href: '/inbox', label: '文件收件箱', icon: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12', categories: ['ADMIN', 'FINANCE', 'LEADER'] },
+  { href: '/approvals', label: '审批中心', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', categories: ['ADMIN', 'FINANCE', 'LEADER'] },
+  { href: '/my-applications', label: '我的请款', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', categories: ['ADMIN', 'FINANCE', 'LEADER'] },
+  { href: '/applications/new', label: '新建请款', icon: 'M12 4v16m8-8H4', categories: ['ADMIN', 'FINANCE', 'LEADER'] },
+  { href: '/admin/users', label: '用户管理', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', categories: ['ADMIN'] },
+  { href: '/admin/groups', label: '群组管理', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', categories: ['ADMIN'] },
+  { href: '/reports', label: '报表中心', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', categories: [] },
+  { href: '/audit', label: '审计日志', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', categories: ['ADMIN', 'AUDITOR'] },
 ];
+
+function filterNavItems(roles: string[]) {
+  return allNavItems.filter(item => {
+    if (item.categories.length === 0) return true;
+    return item.categories.some(cat => hasCategory(roles, cat));
+  });
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -36,6 +47,9 @@ export function Sidebar() {
   };
 
   if (pathname === '/') return null;
+
+  const navItems = user ? filterNavItems(user.roles) : allNavItems;
+  const userCategory = user ? getUserCategory(user.roles) : null;
 
   return (
     <>
@@ -69,7 +83,11 @@ export function Sidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-700 truncate">{user.display_name}</p>
-              <p className="text-xs text-slate-400 truncate">{user.roles.join(', ')}</p>
+              {userCategory && (
+                <span className={`inline-block text-xs px-1.5 py-0.5 rounded ${categoryColor(userCategory)}`}>
+                  {categoryLabel(userCategory)}
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -120,8 +138,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // During SSR and first client render, render children bare to avoid hydration mismatch.
-  // After mount, apply the full shell for non-login pages.
   if (!mounted || pathname === '/') return <>{children}</>;
 
   return (
