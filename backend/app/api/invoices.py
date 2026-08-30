@@ -42,18 +42,17 @@ async def create_invoice(req: InvoiceCreate, current: CurrentUser = Depends(get_
         raise HTTPException(status_code=400, detail="amount_ex_tax + tax_amount must equal amount_inc_tax")
 
     inv = Invoice(
-        organization_id=current.organization_id, project_id=pid, contract_id=cid,
+        project_id=pid, contract_id=cid,
         invoice_no=req.invoice_no, invoice_type=InvoiceType(req.invoice_type),
         issue_date=req.issue_date, due_date=req.due_date,
         amount_ex_tax=req.amount_ex_tax, tax_amount=req.tax_amount, amount_inc_tax=req.amount_inc_tax,
         tax_rate=req.tax_rate, status=InvoiceStatus.DRAFT, source=req.source, notes=req.notes,
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(inv)
     await db.flush()
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="CREATE",
         resource_type="invoice",
         resource_id=str(inv.id),
@@ -109,7 +108,7 @@ async def update_invoice(invoice_id: str, req: InvoiceCreate, current: CurrentUs
     inv.tax_rate = req.tax_rate
     inv.source = req.source
     inv.notes = req.notes
-    inv.updated_by = current.user.id
+    inv.updated_by = current.id
     await db.commit()
     await db.refresh(inv)
     return _to_response(inv)
@@ -126,7 +125,7 @@ async def add_link(invoice_id: str, req: InvoiceLinkCreate, current: CurrentUser
 
     link = InvoiceApplicationLink(
         invoice_id=iid, payment_application_id=uuid.UUID(req.payment_application_id),
-        linked_amount=req.linked_amount, created_by=current.user.id, updated_by=current.user.id,
+        linked_amount=req.linked_amount, created_by=current.id, updated_by=current.id,
     )
     db.add(link)
     await db.commit()
@@ -165,10 +164,9 @@ async def issue_invoice(invoice_id: str, current: CurrentUser = Depends(get_curr
     inv.status = InvoiceStatus.ISSUED
     if not inv.issue_date:
         inv.issue_date = date.today()
-    inv.updated_by = current.user.id
+    inv.updated_by = current.id
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="ISSUE",
         resource_type="invoice",
         resource_id=str(inv.id),

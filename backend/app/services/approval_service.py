@@ -13,13 +13,13 @@ from app.services.calc_engine import (
 from app.models.approval import Approval, AuditLog
 
 
-async def audit_log(db: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID, action: str, resource_type: str, resource_id: str, detail: dict = None):
-    log = AuditLog(organization_id=org_id, user_id=user_id, action=action, resource_type=resource_type, resource_id=resource_id, detail=detail)
+async def audit_log(db: AsyncSession, user_id: uuid.UUID, action: str, resource_type: str, resource_id: str, detail: dict = None):
+    log = AuditLog(user_id=user_id, action=action, resource_type=resource_type, resource_id=resource_id, detail=detail)
     db.add(log)
     await db.flush()
 
 
-async def submit_application(app_id: uuid.UUID, db: AsyncSession, user_id: uuid.UUID, org_id: uuid.UUID) -> PaymentApplication:
+async def submit_application(app_id: uuid.UUID, db: AsyncSession, user_id: uuid.UUID) -> PaymentApplication:
     """Transition application from DRAFT to SUBMITTED after validation."""
     result = await db.execute(select(PaymentApplication).where(PaymentApplication.id == app_id))
     app = result.scalar_one_or_none()
@@ -29,13 +29,13 @@ async def submit_application(app_id: uuid.UUID, db: AsyncSession, user_id: uuid.
         raise HTTPException(status_code=400, detail=f"Cannot submit application in status {app.status}")
     app.status = ApplicationStatus.SUBMITTED
     app.updated_by = user_id
-    await audit_log(db, org_id, user_id, "SUBMIT_APPLICATION", "payment_application", str(app_id))
+    await audit_log(db, user_id, "SUBMIT_APPLICATION", "payment_application", str(app_id))
     await db.commit()
     await db.refresh(app)
     return app
 
 
-async def approve_application(app_id: uuid.UUID, step: str, db: AsyncSession, user_id: uuid.UUID, org_id: uuid.UUID) -> PaymentApplication:
+async def approve_application(app_id: uuid.UUID, step: str, db: AsyncSession, user_id: uuid.UUID) -> PaymentApplication:
     """Approve application at a given step (project or finance)."""
     result = await db.execute(select(PaymentApplication).where(PaymentApplication.id == app_id))
     app = result.scalar_one_or_none()
@@ -62,13 +62,13 @@ async def approve_application(app_id: uuid.UUID, step: str, db: AsyncSession, us
         app.status = ApplicationStatus.FINANCE_APPROVED
 
     app.updated_by = user_id
-    await audit_log(db, org_id, user_id, f"APPROVE_{step.upper()}", "payment_application", str(app_id))
+    await audit_log(db, user_id, f"APPROVE_{step.upper()}", "payment_application", str(app_id))
     await db.commit()
     await db.refresh(app)
     return app
 
 
-async def post_application(app_id: uuid.UUID, action_id: str, db: AsyncSession, user_id: uuid.UUID, org_id: uuid.UUID) -> PaymentApplication:
+async def post_application(app_id: uuid.UUID, action_id: str, db: AsyncSession, user_id: uuid.UUID) -> PaymentApplication:
     """Post application — idempotent via posted_action_id."""
     result = await db.execute(select(PaymentApplication).where(PaymentApplication.id == app_id))
     app = result.scalar_one_or_none()
@@ -98,7 +98,7 @@ async def post_application(app_id: uuid.UUID, action_id: str, db: AsyncSession, 
     for line in lines_result.scalars().all():
         if line.retention_held > 0:
             entry = RetentionEntry(
-                organization_id=org_id, project_id=app.project_id, contract_id=app.contract_id,
+                project_id=app.project_id, contract_id=app.contract_id,
                 payment_application_id=app_id, contract_item_id=line.contract_item_id,
                 entry_type=RetentionEntryType.HOLD, amount=line.retention_held,
                 description=f"Retention held for period {app.period_no}",
@@ -106,7 +106,7 @@ async def post_application(app_id: uuid.UUID, action_id: str, db: AsyncSession, 
             )
             db.add(entry)
 
-    await audit_log(db, org_id, user_id, "POST_APPLICATION", "payment_application", str(app_id), {"action_id": action_id})
+    await audit_log(db, user_id, "POST_APPLICATION", "payment_application", str(app_id), {"action_id": action_id})
     await db.commit()
     await db.refresh(app)
     return app

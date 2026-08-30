@@ -47,7 +47,6 @@ async def save_upload(
     project_code: str,
     document_type: str,
     db: AsyncSession,
-    organization_id: _uuid.UUID,
     user_id: _uuid.UUID,
 ) -> Document:
     # Validate extension
@@ -65,11 +64,11 @@ async def save_upload(
     sha = compute_sha256_bytes(content)
 
     # Get or create storage root
-    result = await db.execute(select(StorageRoot).where(StorageRoot.organization_id == organization_id, StorageRoot.is_active == True))
+    result = await db.execute(select(StorageRoot).where(StorageRoot.is_active == True))
     root = result.scalar_one_or_none()
     if not root:
         root = StorageRoot(
-            organization_id=organization_id, code="default",
+            code="default",
             base_path=settings.FILE_STORAGE_ROOT, storage_type="LOCAL",
             is_active=True, read_only=False, created_by=user_id, updated_by=user_id,
         )
@@ -91,7 +90,7 @@ async def save_upload(
 
     # Create document record
     doc = Document(
-        organization_id=organization_id, project_id=project_id, storage_root_id=root.id,
+        project_id=project_id, storage_root_id=root.id,
         original_name=upload.filename, stored_name=stored_name, relative_path=relative_path,
         document_type=document_type, mime_type=upload.content_type or "application/octet-stream",
         file_extension=ext, size_bytes=len(content), sha256=sha,
@@ -105,7 +104,6 @@ async def save_upload(
     link = DocumentLink(document_id=doc.id, link_type="PROJECT", linked_id=project_id)
     db.add(link)
     db.add(AuditLog(
-        organization_id=organization_id,
         user_id=user_id,
         action="UPLOAD",
         resource_type="document",

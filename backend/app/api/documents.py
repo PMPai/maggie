@@ -39,9 +39,9 @@ async def upload_document(
     result = await db.execute(select(Project).where(Project.id == pid))
     project = result.scalar_one()
     doc = await save_upload(
-        upload=file, project_id=pid, org_code=current.organization_id.hex[:8],
+        upload=file, project_id=pid, org_code="local",
         project_code=project.internal_project_code, document_type=document_type,
-        db=db, organization_id=current.organization_id, user_id=current.user.id,
+        db=db, user_id=current.id,
     )
     return _to_response(doc)
 

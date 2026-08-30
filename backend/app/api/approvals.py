@@ -5,8 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser
 from app.models.approval import Approval
-from app.models.identity import UserRoleEnum
-from app.models.project import Project, ProjectMember
+from app.models.project import Project
 from app.models.contract import Contract, ContractVersion, ContractVersionStatus, ContractItem
 from app.models.variation import Variation, VariationStatus
 from app.models.billing import PaymentApplication, ApplicationStatus, PaymentApplicationLine
@@ -15,20 +14,11 @@ router = APIRouter(prefix="/api/approvals", tags=["approvals"])
 
 
 async def _accessible_project_ids(current: CurrentUser, db: AsyncSession) -> list[uuid.UUID]:
-    if UserRoleEnum.SYSTEM_ADMIN in current.roles:
-        result = await db.execute(
-            select(Project.id).where(
-                Project.organization_id == current.organization_id,
-                Project.deleted_at.is_(None),
-            )
+    result = await db.execute(
+        select(Project.id).where(
+            Project.deleted_at.is_(None),
         )
-    else:
-        result = await db.execute(
-            select(ProjectMember.project_id).where(
-                ProjectMember.user_id == current.user.id,
-                ProjectMember.status == "ACTIVE",
-            )
-        )
+    )
     return [r[0] for r in result.all()]
 
 

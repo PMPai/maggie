@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import Enum, String, Text, Integer, Boolean, Numeric, Date, ForeignKey, DateTime, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin
+from app.db.base import Base, TimestampMixin,  AuditMixin, SoftDeleteMixin
 
 
 class ApplicationStatus(enum.Enum):
@@ -30,7 +30,7 @@ class RetentionEntryType(enum.Enum):
     REVERSAL = "REVERSAL"
 
 
-class PaymentApplication(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin):
+class PaymentApplication(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
     __tablename__ = "payment_applications"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -62,7 +62,7 @@ class PaymentApplication(Base, TimestampMixin, OrganizationMixin, AuditMixin, So
     )
 
 
-class PaymentApplicationLine(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class PaymentApplicationLine(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "payment_application_lines"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -89,7 +89,7 @@ class PaymentApplicationLine(Base, TimestampMixin, OrganizationMixin, AuditMixin
     validation_status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
 
 
-class MilestoneEvent(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class MilestoneEvent(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "milestone_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -103,7 +103,7 @@ class MilestoneEvent(Base, TimestampMixin, OrganizationMixin, AuditMixin):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class RetentionEntry(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class RetentionEntry(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "retention_entries"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

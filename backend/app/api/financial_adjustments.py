@@ -30,12 +30,12 @@ async def create_adjustment(req: FinancialAdjustmentCreate, current: CurrentUser
     await require_project_member(pid, current, db)
 
     adj = FinancialAdjustment(
-        organization_id=current.organization_id, project_id=pid,
+        project_id=pid,
         adjustment_no=req.adjustment_no, adjustment_type=req.adjustment_type,
         invoice_id=uuid.UUID(req.invoice_id) if req.invoice_id else None,
         collection_id=uuid.UUID(req.collection_id) if req.collection_id else None,
         amount=req.amount, description=req.description, reason=req.reason,
-        status="PENDING", created_by=current.user.id, updated_by=current.user.id,
+        status="PENDING", created_by=current.id, updated_by=current.id,
     )
     db.add(adj)
     await db.commit()
@@ -76,12 +76,11 @@ async def approve_adjustment(adjustment_id: str, current: CurrentUser = Depends(
         raise HTTPException(status_code=400, detail="Only pending adjustments can be approved")
 
     adj.status = "APPROVED"
-    adj.approved_by = current.user.id
+    adj.approved_by = current.id
     adj.approved_at = date.today()
-    adj.updated_by = current.user.id
+    adj.updated_by = current.id
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="APPROVE",
         resource_type="financial_adjustment",
         resource_id=str(adj.id),

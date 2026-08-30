@@ -6,11 +6,11 @@ from app.models.billing import RetentionEntry, RetentionEntryType
 
 
 async def create_release(
-    project_id, contract_id, db: AsyncSession, user_id, org_id,
+    project_id, contract_id, db: AsyncSession, user_id,
     payment_application_id=None, amount=Decimal("0"), description=None,
 ):
     entry = RetentionEntry(
-        organization_id=org_id, project_id=project_id, contract_id=contract_id,
+        project_id=project_id, contract_id=contract_id,
         payment_application_id=payment_application_id,
         entry_type=RetentionEntryType.RELEASE,
         amount=amount, description=description,
@@ -23,11 +23,11 @@ async def create_release(
 
 
 async def create_adjustment(
-    project_id, contract_id, db: AsyncSession, user_id, org_id,
+    project_id, contract_id, db: AsyncSession, user_id,
     amount=Decimal("0"), description=None, contract_item_id=None,
 ):
     entry = RetentionEntry(
-        organization_id=org_id, project_id=project_id, contract_id=contract_id,
+        project_id=project_id, contract_id=contract_id,
         contract_item_id=contract_item_id,
         entry_type=RetentionEntryType.ADJUSTMENT,
         amount=amount, description=description,
@@ -40,14 +40,14 @@ async def create_adjustment(
 
 
 async def create_reversal(
-    original_entry_id, db: AsyncSession, user_id, org_id, description=None,
+    original_entry_id, db: AsyncSession, user_id, description=None,
 ):
     result = await db.execute(select(RetentionEntry).where(RetentionEntry.id == original_entry_id))
     original = result.scalar_one_or_none()
     if not original:
         raise ValueError("Original retention entry not found")
     entry = RetentionEntry(
-        organization_id=org_id, project_id=original.project_id,
+        project_id=original.project_id,
         contract_id=original.contract_id,
         payment_application_id=original.payment_application_id,
         contract_item_id=original.contract_item_id,

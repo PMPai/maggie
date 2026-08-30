@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import Enum, String, Text, Date, Numeric, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin
+from app.db.base import Base, TimestampMixin,  AuditMixin, SoftDeleteMixin
 
 
 class CollectionStatus(enum.Enum):
@@ -14,7 +14,7 @@ class CollectionStatus(enum.Enum):
     REVERSED = "REVERSED"
 
 
-class Collection(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin):
+class Collection(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
     __tablename__ = "collections"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)

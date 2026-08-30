@@ -3,10 +3,10 @@ from datetime import datetime
 from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin
+from app.db.base import Base, TimestampMixin,  AuditMixin
 
 
-class ApprovalWorkflow(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class ApprovalWorkflow(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "approval_workflows"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -45,7 +45,6 @@ class Approval(Base, TimestampMixin, AuditMixin):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     action: Mapped[str] = mapped_column(String(64), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(32), nullable=False)

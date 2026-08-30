@@ -39,18 +39,17 @@ async def create_collection(req: CollectionCreate, current: CurrentUser = Depend
         raise HTTPException(status_code=404, detail="Contract not found")
 
     col = Collection(
-        organization_id=current.organization_id, project_id=pid, contract_id=cid,
+        project_id=pid, contract_id=cid,
         receipt_no=req.receipt_no, receipt_date=req.receipt_date,
         amount_received=req.amount_received, payment_method=req.payment_method,
         bank_reference=req.bank_reference, notes=req.notes,
         status=CollectionStatus(req.status),
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(col)
     await db.flush()
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="CREATE",
         resource_type="collection",
         resource_id=str(col.id),
@@ -100,7 +99,7 @@ async def allocate(collection_id: str, req: CollectionAllocationCreate, current:
 
     allocation = CollectionAllocation(
         collection_id=cid, invoice_id=inv_id,
-        allocated_amount=req.allocated_amount, created_by=current.user.id, updated_by=current.user.id,
+        allocated_amount=req.allocated_amount, created_by=current.id, updated_by=current.id,
     )
     db.add(allocation)
 
@@ -110,11 +109,10 @@ async def allocate(collection_id: str, req: CollectionAllocationCreate, current:
     inv = result.scalar_one_or_none()
     if inv and inv.status == InvoiceStatus.ISSUED:
         inv.status = InvoiceStatus.PAID if remaining <= Decimal("0") else InvoiceStatus.PARTIALLY_PAID
-        inv.updated_by = current.user.id
+        inv.updated_by = current.id
 
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="ALLOCATE",
         resource_type="collection",
         resource_id=str(cid),

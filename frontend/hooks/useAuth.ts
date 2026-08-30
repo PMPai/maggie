@@ -1,29 +1,19 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
 import type { User } from '@/lib/types';
 
+const LOCAL_USER: User = {
+  id: '00000000-0000-0000-0000-000000000001',
+  email: 'local@maggie',
+  display_name: 'Local User',
+  roles: ['SYSTEM_ADMIN', 'CONTRACT_ADMIN', 'FINANCE_REVIEWER', 'FINANCE_USER', 'COST_REVIEWER', 'PROJECT_MANAGER', 'PROJECT_USER', 'AUDITOR', 'VIEWER'],
+};
+
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const user: User | null = LOCAL_USER;
+  const loading = false;
 
-  useEffect(() => {
-    api.get<User>('/auth/me')
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    const u = await api.post<User>('/auth/login', { email, password });
-    setUser(u);
-    return u;
-  };
-
-  const logout = async () => {
-    await api.post('/auth/logout');
-    setUser(null);
-  };
+  const login = async (_email: string, _password: string) => LOCAL_USER;
+  const logout = async () => {};
 
   return { user, loading, login, logout };
 }

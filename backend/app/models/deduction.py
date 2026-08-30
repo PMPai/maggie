@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import Enum, String, Text, Date, Numeric, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin
+from app.db.base import Base, TimestampMixin,  AuditMixin, SoftDeleteMixin
 
 
 class DeductionType(enum.Enum):
@@ -28,7 +28,7 @@ class DeductionStatus(enum.Enum):
     REJECTED = "REJECTED"
 
 
-class Deduction(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin):
+class Deduction(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
     __tablename__ = "deductions"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)

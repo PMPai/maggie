@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.db.session import get_db
-from app.deps import get_current_user, CurrentUser, require_project_member, UserRoleEnum
+from app.deps import get_current_user, CurrentUser, require_project_member
 from app.models.contract import Contract, ContractVersion, ContractItem, PaymentRule, ContractVersionStatus
 from app.models.approval import AuditLog
 from app.schemas.contract import (
@@ -21,14 +21,14 @@ async def create_contract(req: ContractCreate, current: CurrentUser = Depends(ge
     pid = uuid.UUID(req.project_id)
     await require_project_member(pid, current, db)
     contract = Contract(
-        organization_id=current.organization_id, project_id=pid,
+        project_id=pid,
         external_contract_no=req.external_contract_no, contract_name=req.contract_name,
         customer_company_id=uuid.UUID(req.customer_company_id) if req.customer_company_id else None,
         contractor_company_id=uuid.UUID(req.contractor_company_id) if req.contractor_company_id else None,
         signed_date=req.signed_date, effective_date=req.effective_date,
         currency=req.currency, tax_mode=req.tax_mode, tax_rate=req.tax_rate,
         rounding_policy=req.rounding_policy, rounding_granularity=req.rounding_granularity,
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(contract)
     await db.commit()
@@ -48,7 +48,7 @@ async def list_contracts(project_id: str = Query(...), current: CurrentUser = De
     pid = uuid.UUID(project_id)
     await require_project_member(pid, current, db)
     result = await db.execute(
-        select(Contract).where(Contract.project_id == pid, Contract.organization_id == current.organization_id, Contract.deleted_at.is_(None))
+        select(Contract).where(Contract.project_id == pid, Contract.deleted_at.is_(None))
     )
     contracts = result.scalars().all()
     return [ContractResponse(
@@ -90,10 +90,10 @@ async def create_version(contract_id: str, req: ContractVersionCreate, current: 
     next_no = (max_version.scalar() or 0) + 1
 
     version = ContractVersion(
-        organization_id=current.organization_id, contract_id=cid, version_no=next_no,
+        contract_id=cid, version_no=next_no,
         version_type=req.version_type, effective_date=req.effective_date,
         amount_ex_tax=req.amount_ex_tax, tax_amount=req.tax_amount, amount_inc_tax=req.amount_inc_tax,
-        change_reason=req.change_reason, created_by=current.user.id, updated_by=current.user.id,
+        change_reason=req.change_reason, created_by=current.id, updated_by=current.id,
     )
     db.add(version)
     await db.commit()
@@ -157,7 +157,7 @@ async def approve_version(contract_id: str, version_id: str, current: CurrentUse
         pv.status = ContractVersionStatus.SUPERSEDED
 
     version.status = ContractVersionStatus.APPROVED
-    version.approved_by = current.user.id
+    version.approved_by = current.id
     version.approved_at = datetime.now(timezone.utc)
     contract.active_version_id = vid
     contract.original_amount_ex_tax = version.amount_ex_tax
@@ -176,8 +176,6 @@ async def approve_version(contract_id: str, version_id: str, current: CurrentUse
 
 @router.patch("/contract-versions/{version_id}", response_model=ContractVersionResponse)
 async def patch_contract_version(version_id: str, req: ContractVersionPatch, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if UserRoleEnum.SYSTEM_ADMIN not in current.roles and UserRoleEnum.CONTRACT_ADMIN not in current.roles:
-        raise HTTPException(status_code=403, detail="Insufficient role")
     vid = uuid.UUID(version_id)
     result = await db.execute(select(ContractVersion).where(ContractVersion.id == vid))
     cv = result.scalar_one_or_none()
@@ -216,10 +214,10 @@ async def patch_contract_version(version_id: str, req: ContractVersionPatch, cur
         elif hasattr(cv, field):
             setattr(cv, field, value)
             applied_fields.append(field)
-    cv.updated_by = current.user.id
+    cv.updated_by = current.id
 
     db.add(AuditLog(
-        organization_id=current.organization_id, user_id=current.user.id,
+        user_id=current.id,
         resource_type="contract_version", resource_id=str(vid),
         action="PATCH", detail={"version_no": cv.version_no, "fields": applied_fields},
     ))
@@ -246,14 +244,14 @@ async def create_item(version_id: str, req: ContractItemCreate, current: Current
     await require_project_member(contract.project_id, current, db)
 
     item = ContractItem(
-        organization_id=current.organization_id, contract_version_id=vid,
+        contract_version_id=vid,
         parent_item_id=uuid.UUID(req.parent_item_id) if req.parent_item_id else None,
         line_no=req.line_no, item_code=req.item_code, source_description=req.source_description,
         normalized_description=req.normalized_description, unit=req.unit,
         contract_quantity=req.contract_quantity, unit_price=req.unit_price, line_amount=req.line_amount,
         calculation_method=req.calculation_method, tax_category=req.tax_category,
         retention_applicable=req.retention_applicable, is_heading=req.is_heading, is_billable=req.is_billable,
-        sort_order=req.sort_order, created_by=current.user.id, updated_by=current.user.id,
+        sort_order=req.sort_order, created_by=current.id, updated_by=current.id,
     )
     db.add(item)
     await db.commit()
@@ -296,8 +294,6 @@ async def list_items(version_id: str, current: CurrentUser = Depends(get_current
 @router.patch("/contract-versions/{version_id}/items/{item_id}", response_model=ContractItemResponse)
 async def patch_item(version_id: str, item_id: str, req: ContractItemPatch,
                      current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if UserRoleEnum.SYSTEM_ADMIN not in current.roles and UserRoleEnum.CONTRACT_ADMIN not in current.roles:
-        raise HTTPException(status_code=403, detail="Insufficient role")
     vid = uuid.UUID(version_id)
     iid = uuid.UUID(item_id)
     result = await db.execute(select(ContractVersion).where(ContractVersion.id == vid))
@@ -322,10 +318,10 @@ async def patch_item(version_id: str, item_id: str, req: ContractItemPatch,
         if hasattr(item, field):
             setattr(item, field, value)
             applied_fields.append(field)
-    item.updated_by = current.user.id
+    item.updated_by = current.id
 
     db.add(AuditLog(
-        organization_id=current.organization_id, user_id=current.user.id,
+        user_id=current.id,
         resource_type="contract_item", resource_id=str(iid),
         action="PATCH", detail={"version_id": str(vid), "fields": applied_fields},
     ))
@@ -346,12 +342,12 @@ async def patch_item(version_id: str, item_id: str, req: ContractItemPatch,
 async def create_payment_rule(version_id: str, req: PaymentRuleCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     vid = uuid.UUID(version_id)
     rule = PaymentRule(
-        organization_id=current.organization_id, contract_version_id=vid,
+        contract_version_id=vid,
         contract_item_id=uuid.UUID(req.contract_item_id) if req.contract_item_id else None,
         rule_type=req.rule_type, rule_name=req.rule_name, rate=req.rate,
         calculation_base=req.calculation_base, condition_code=req.condition_code,
         condition_description=req.condition_description, release_sequence=req.release_sequence,
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(rule)
     await db.commit()

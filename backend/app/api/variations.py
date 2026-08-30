@@ -13,14 +13,13 @@ router = APIRouter(prefix="/api/variations", tags=["variations"])
 @router.post("", response_model=VariationResponse)
 async def create_variation(req: VariationCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     variation = Variation(
-        organization_id=current.organization_id,
         project_id=req.project_id, contract_id=req.contract_id, contract_item_id=req.contract_item_id,
         variation_no=req.variation_no, variation_type=VariationType(req.variation_type),
         description=req.description, reason=req.reason,
         amount_ex_tax=req.amount_ex_tax, tax_amount=req.tax_amount, amount_inc_tax=req.amount_inc_tax,
         quantity_delta=req.quantity_delta, effective_date=req.effective_date,
         source_document_id=req.source_document_id,
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(variation)
     await db.commit()
@@ -40,7 +39,7 @@ async def create_variation(req: VariationCreate, current: CurrentUser = Depends(
 
 @router.get("", response_model=list[VariationResponse])
 async def list_variations(project_id: str = Query(None), current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    stmt = select(Variation).where(Variation.organization_id == current.organization_id, Variation.deleted_at.is_(None))
+    stmt = select(Variation).where(Variation.deleted_at.is_(None))
     if project_id:
         stmt = stmt.where(Variation.project_id == project_id)
     result = await db.execute(stmt)
@@ -60,7 +59,7 @@ async def list_variations(project_id: str = Query(None), current: CurrentUser = 
 @router.get("/{variation_id}", response_model=VariationResponse)
 async def get_variation(variation_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Variation).where(Variation.id == variation_id, Variation.organization_id == current.organization_id, Variation.deleted_at.is_(None))
+        select(Variation).where(Variation.id == variation_id, Variation.deleted_at.is_(None))
     )
     v = result.scalars().first()
     if not v:
@@ -81,19 +80,18 @@ async def get_variation(variation_id: str, current: CurrentUser = Depends(get_cu
 @router.post("/{variation_id}/approve", response_model=VariationResponse)
 async def approve_variation(variation_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Variation).where(Variation.id == variation_id, Variation.organization_id == current.organization_id, Variation.deleted_at.is_(None))
+        select(Variation).where(Variation.id == variation_id, Variation.deleted_at.is_(None))
     )
     v = result.scalars().first()
     if not v:
         raise HTTPException(status_code=404, detail="Variation not found")
     v.status = VariationStatus.APPROVED
-    v.approved_by = current.user.id
+    v.approved_by = current.id
     from datetime import date
     v.approved_at = date.today()
-    v.updated_by = current.user.id
+    v.updated_by = current.id
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="APPROVE",
         resource_type="variation",
         resource_id=str(v.id),
@@ -117,16 +115,15 @@ async def approve_variation(variation_id: str, current: CurrentUser = Depends(ge
 @router.post("/{variation_id}/reject", response_model=VariationResponse)
 async def reject_variation(variation_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Variation).where(Variation.id == variation_id, Variation.organization_id == current.organization_id, Variation.deleted_at.is_(None))
+        select(Variation).where(Variation.id == variation_id, Variation.deleted_at.is_(None))
     )
     v = result.scalars().first()
     if not v:
         raise HTTPException(status_code=404, detail="Variation not found")
     v.status = VariationStatus.REJECTED
-    v.updated_by = current.user.id
+    v.updated_by = current.id
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="REJECT",
         resource_type="variation",
         resource_id=str(v.id),

@@ -1,14 +1,13 @@
-import enum
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import Enum, String, Text, Boolean, Date, Numeric, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import String, Text, Date, Numeric, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin
+from app.db.base import Base, TimestampMixin, AuditMixin, SoftDeleteMixin
 
 
-class Company(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin):
+class Company(Base, TimestampMixin, AuditMixin, SoftDeleteMixin):
     __tablename__ = "companies"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -22,11 +21,11 @@ class Company(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMix
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
 
     __table_args__ = (
-        UniqueConstraint("organization_id", "code", name="uq_companies_org_code"),
+        UniqueConstraint("code", name="uq_companies_code"),
     )
 
 
-class Project(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin):
+class Project(Base, TimestampMixin, AuditMixin, SoftDeleteMixin):
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -34,7 +33,7 @@ class Project(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMix
     project_name: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     project_manager_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), nullable=True
     )
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     planned_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -45,32 +44,7 @@ class Project(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMix
     special_fund_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("organization_id", "internal_project_code", name="uq_projects_org_code"),
-    )
-
-
-class ProjectMemberRoleEnum(enum.Enum):
-    PROJECT_MANAGER = "PROJECT_MANAGER"
-    COST_REVIEWER = "COST_REVIEWER"
-    PROJECT_USER = "PROJECT_USER"
-    FINANCE_USER = "FINANCE_USER"
-
-
-class ProjectMember(Base, TimestampMixin, AuditMixin):
-    __tablename__ = "project_members"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    project_role: Mapped[str] = mapped_column(Enum(ProjectMemberRoleEnum), nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
-
-    __table_args__ = (
-        UniqueConstraint("project_id", "user_id", name="uq_project_members"),
+        UniqueConstraint("internal_project_code", name="uq_projects_code"),
     )
 
 

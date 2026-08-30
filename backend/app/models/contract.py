@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import Enum, String, Text, Boolean, Integer, Numeric, Date, ForeignKey, DateTime, UniqueConstraint, CheckConstraint, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin
+from app.db.base import Base, TimestampMixin,  AuditMixin, SoftDeleteMixin
 
 
 class TaxMode(enum.Enum):
@@ -20,7 +20,7 @@ class RoundingPolicy(enum.Enum):
     BANKERS = "BANKERS"
 
 
-class Contract(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin):
+class Contract(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
     __tablename__ = "contracts"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -59,7 +59,7 @@ class ContractVersionStatus(enum.Enum):
     REJECTED = "REJECTED"
 
 
-class ContractVersion(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class ContractVersion(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "contract_versions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -92,7 +92,7 @@ class CalculationMethod(enum.Enum):
     HEADING = "HEADING"
 
 
-class ContractItem(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class ContractItem(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "contract_items"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -133,7 +133,7 @@ class PaymentRuleType(enum.Enum):
     PENALTY = "PENALTY"
 
 
-class PaymentRule(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class PaymentRule(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "payment_rules"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

@@ -16,7 +16,6 @@ from app.schemas.billing import (
     ApplicationCreate, ApplicationResponse, ApplicationLineCreate,
     ApplicationLineResponse, PostRequest, PreviewRequest,
 )
-from app.models.identity import UserRoleEnum
 from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/payment-applications", tags=["payment-applications"])
@@ -37,17 +36,16 @@ async def create_application(req: ApplicationCreate, current: CurrentUser = Depe
         raise HTTPException(status_code=400, detail="Contract has no approved version")
 
     app = PaymentApplication(
-        organization_id=current.organization_id, project_id=pid, contract_id=cid,
+        project_id=pid, contract_id=cid,
         contract_version_id=contract.active_version_id, application_no=req.application_no,
         period_no=req.period_no, period_start=req.period_start, period_end=req.period_end,
         application_date=req.application_date, currency=contract.currency,
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(app)
     await db.flush()
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="CREATE",
         resource_type="payment_application",
         resource_id=str(app.id),
@@ -121,7 +119,7 @@ async def add_line(app_id: str, req: ApplicationLineCreate, current: CurrentUser
     )
 
     line = PaymentApplicationLine(
-        organization_id=current.organization_id, payment_application_id=aid,
+        payment_application_id=aid,
         contract_item_id=item_id, contract_version_id=app.contract_version_id,
         description_snapshot=item.source_description, unit_snapshot=item.unit,
         unit_price_snapshot=item.unit_price, previous_approved_quantity=Decimal("0"),
@@ -133,7 +131,7 @@ async def add_line(app_id: str, req: ApplicationLineCreate, current: CurrentUser
         tax_amount=line_result.tax_amount, net_amount=line_result.net_amount,
         calculation_method=item.calculation_method.value, user_explanation=req.user_explanation,
         validation_status="VALID" if not line_result.validation_issues else "INVALID",
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(line)
     await db.commit()
@@ -179,7 +177,7 @@ async def submit(app_id: str, current: CurrentUser = Depends(get_current_user), 
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
     await require_project_member(app.project_id, current, db)
-    return await submit_application(aid, db, current.user.id, current.organization_id)
+    return await submit_application(aid, db, current.id)
 
 
 @router.post("/{app_id}/approve", response_model=ApplicationResponse)
@@ -190,7 +188,7 @@ async def approve(app_id: str, step: str = Query(...), current: CurrentUser = De
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
     await require_project_member(app.project_id, current, db)
-    return await approve_application(aid, step, db, current.user.id, current.organization_id)
+    return await approve_application(aid, step, db, current.id)
 
 
 @router.post("/{app_id}/post", response_model=ApplicationResponse)
@@ -201,7 +199,7 @@ async def post(app_id: str, req: PostRequest, current: CurrentUser = Depends(get
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
     await require_project_member(app.project_id, current, db)
-    return await post_application(aid, req.action_id, db, current.user.id, current.organization_id)
+    return await post_application(aid, req.action_id, db, current.id)
 
 
 @router.get("/{app_id}", response_model=ApplicationResponse)
@@ -225,14 +223,12 @@ async def get_application(app_id: str, current: CurrentUser = Depends(get_curren
 async def list_applications(project_id: str = Query(None), my: bool = Query(False), current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     conditions = [PaymentApplication.deleted_at.is_(None)]
 
-    if project_id:
+if project_id:
         pid = uuid.UUID(project_id)
         await require_project_member(pid, current, db)
         conditions.append(PaymentApplication.project_id == pid)
     elif my:
-        conditions.append(PaymentApplication.created_by == current.user.id)
-    else:
-        conditions.append(PaymentApplication.organization_id == current.organization_id)
+        conditions.append(PaymentApplication.created_by == current.id)
 
     result = await db.execute(
         select(PaymentApplication).where(*conditions).order_by(PaymentApplication.created_at.desc())
@@ -260,8 +256,7 @@ async def generate_document_endpoint(app_id: str, output_format: str = "pdf", cu
         raise HTTPException(status_code=400, detail="Application must be POSTED to generate document")
 
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="GENERATE",
         resource_type="payment_application",
         resource_id=str(aid),

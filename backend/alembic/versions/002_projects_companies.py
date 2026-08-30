@@ -2,7 +2,10 @@
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
-from app.models.project import ProjectMemberRoleEnum
+
+# ProjectMemberRoleEnum was removed from the models in Phase 1 (auth strip).
+# Inline the enum name so this historical migration still imports cleanly.
+_ProjectMemberRoleEnum = sa.Enum("PROJECT_MANAGER", "COST_REVIEWER", "PROJECT_USER", "FINANCE_USER", name="projectmemberroleenum")
 
 revision = "002"
 down_revision = "001"
@@ -60,7 +63,7 @@ def upgrade():
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("project_id", UUID(as_uuid=True), sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False),
         sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("project_role", sa.Enum(ProjectMemberRoleEnum), nullable=False),
+        sa.Column("project_role", _ProjectMemberRoleEnum, nullable=False),
         sa.Column("status", sa.String(16), nullable=False, server_default="ACTIVE"),
         sa.Column("created_by", UUID(as_uuid=True)),
         sa.Column("updated_by", UUID(as_uuid=True)),

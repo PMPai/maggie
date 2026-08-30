@@ -79,21 +79,15 @@ async def audit_log(current: CurrentUser = Depends(get_current_user), db: AsyncS
 @router.get("/project-overview")
 async def project_overview(current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """项目合同总览 — per project: contract info + approved totals + invoiced + collected."""
-    from app.models.project import Project, ProjectMember
-    from app.models.identity import UserRoleEnum
+    from app.models.project import Project
     from app.models.contract import Contract, ContractVersion, ContractVersionStatus
     from app.models.billing import PaymentApplication, ApplicationStatus
     from app.models.invoice import Invoice, InvoiceStatus
     from app.models.collection import Collection, CollectionStatus
 
-    if UserRoleEnum.SYSTEM_ADMIN in current.roles:
-        proj_ids = [r[0] for r in (await db.execute(
-            select(Project.id).where(Project.organization_id == current.organization_id, Project.deleted_at.is_(None))
-        )).all()]
-    else:
-        proj_ids = [r[0] for r in (await db.execute(
-            select(ProjectMember.project_id).where(ProjectMember.user_id == current.user.id, ProjectMember.status == "ACTIVE")
-        )).all()]
+    proj_ids = [r[0] for r in (await db.execute(
+        select(Project.id).where(Project.deleted_at.is_(None))
+    )).all()]
 
     if not proj_ids:
         return []
@@ -141,19 +135,13 @@ async def project_overview(current: CurrentUser = Depends(get_current_user), db:
 @router.get("/application-history")
 async def application_history(current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """请款历史 — per application: project, contract, period, status, amounts."""
-    from app.models.project import Project, ProjectMember
-    from app.models.identity import UserRoleEnum
+    from app.models.project import Project
     from app.models.contract import Contract
     from app.models.billing import PaymentApplication
 
-    if UserRoleEnum.SYSTEM_ADMIN in current.roles:
-        proj_ids = [r[0] for r in (await db.execute(
-            select(Project.id).where(Project.organization_id == current.organization_id, Project.deleted_at.is_(None))
-        )).all()]
-    else:
-        proj_ids = [r[0] for r in (await db.execute(
-            select(ProjectMember.project_id).where(ProjectMember.user_id == current.user.id, ProjectMember.status == "ACTIVE")
-        )).all()]
+    proj_ids = [r[0] for r in (await db.execute(
+        select(Project.id).where(Project.deleted_at.is_(None))
+    )).all()]
 
     if not proj_ids:
         return []
@@ -184,22 +172,16 @@ async def application_history(current: CurrentUser = Depends(get_current_user), 
 @router.get("/receivables-aging")
 async def receivables_aging(current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """应收账龄 — per outstanding invoice: invoice no, amount, collected, outstanding, age days, age bucket."""
-    from app.models.project import Project, ProjectMember
-    from app.models.identity import UserRoleEnum
+    from app.models.project import Project
     from app.models.contract import Contract
     from app.models.invoice import Invoice, InvoiceStatus
     from app.models.collection import Collection, CollectionStatus, CollectionAllocation
     from sqlalchemy import case
     from datetime import date
 
-    if UserRoleEnum.SYSTEM_ADMIN in current.roles:
-        proj_ids = [r[0] for r in (await db.execute(
-            select(Project.id).where(Project.organization_id == current.organization_id, Project.deleted_at.is_(None))
-        )).all()]
-    else:
-        proj_ids = [r[0] for r in (await db.execute(
-            select(ProjectMember.project_id).where(ProjectMember.user_id == current.user.id, ProjectMember.status == "ACTIVE")
-        )).all()]
+    proj_ids = [r[0] for r in (await db.execute(
+        select(Project.id).where(Project.deleted_at.is_(None))
+    )).all()]
 
     if not proj_ids:
         return []

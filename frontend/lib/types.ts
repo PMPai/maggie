@@ -2,7 +2,6 @@ export interface User {
   id: string;
   email: string;
   display_name: string;
-  organization_id: string;
   roles: string[];
 }
 

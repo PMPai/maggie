@@ -13,18 +13,16 @@ router = APIRouter(prefix="/api/deductions", tags=["deductions"])
 @router.post("", response_model=DeductionResponse)
 async def create_deduction(req: DeductionCreate, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     deduction = Deduction(
-        organization_id=current.organization_id,
         project_id=req.project_id, contract_id=req.contract_id, payment_application_id=req.payment_application_id,
         deduction_no=req.deduction_no, deduction_type=DeductionType(req.deduction_type),
         description=req.description, reason=req.reason, amount=req.amount,
         tax_treatment=TaxTreatment(req.tax_treatment), tax_amount=req.tax_amount, effective_date=req.effective_date,
-        created_by=current.user.id, updated_by=current.user.id,
+        created_by=current.id, updated_by=current.id,
     )
     db.add(deduction)
     await db.flush()
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="CREATE",
         resource_type="deduction",
         resource_id=str(deduction.id),
@@ -46,7 +44,7 @@ async def create_deduction(req: DeductionCreate, current: CurrentUser = Depends(
 
 @router.get("", response_model=list[DeductionResponse])
 async def list_deductions(project_id: str = Query(None), current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    stmt = select(Deduction).where(Deduction.organization_id == current.organization_id, Deduction.deleted_at.is_(None))
+    stmt = select(Deduction).where(Deduction.deleted_at.is_(None))
     if project_id:
         stmt = stmt.where(Deduction.project_id == project_id)
     result = await db.execute(stmt)
@@ -65,7 +63,7 @@ async def list_deductions(project_id: str = Query(None), current: CurrentUser = 
 @router.get("/{deduction_id}", response_model=DeductionResponse)
 async def get_deduction(deduction_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Deduction).where(Deduction.id == deduction_id, Deduction.organization_id == current.organization_id, Deduction.deleted_at.is_(None))
+        select(Deduction).where(Deduction.id == deduction_id, Deduction.deleted_at.is_(None))
     )
     d = result.scalars().first()
     if not d:
@@ -85,19 +83,18 @@ async def get_deduction(deduction_id: str, current: CurrentUser = Depends(get_cu
 @router.post("/{deduction_id}/approve", response_model=DeductionResponse)
 async def approve_deduction(deduction_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Deduction).where(Deduction.id == deduction_id, Deduction.organization_id == current.organization_id, Deduction.deleted_at.is_(None))
+        select(Deduction).where(Deduction.id == deduction_id, Deduction.deleted_at.is_(None))
     )
     d = result.scalars().first()
     if not d:
         raise HTTPException(status_code=404, detail="Deduction not found")
     d.status = DeductionStatus.APPROVED
-    d.approved_by = current.user.id
+    d.approved_by = current.id
     from datetime import date
     d.approved_at = date.today()
-    d.updated_by = current.user.id
+    d.updated_by = current.id
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="APPROVE",
         resource_type="deduction",
         resource_id=str(d.id),

@@ -3,10 +3,10 @@ from datetime import datetime
 from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin
+from app.db.base import Base, TimestampMixin,  AuditMixin, SoftDeleteMixin
 
 
-class StorageRoot(Base, TimestampMixin, OrganizationMixin, AuditMixin):
+class StorageRoot(Base, TimestampMixin,  AuditMixin):
     __tablename__ = "storage_roots"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -18,7 +18,7 @@ class StorageRoot(Base, TimestampMixin, OrganizationMixin, AuditMixin):
     health_status: Mapped[str] = mapped_column(String(16), nullable=False, default="HEALTHY")
 
 
-class Document(Base, TimestampMixin, OrganizationMixin, AuditMixin, SoftDeleteMixin):
+class Document(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
     __tablename__ = "documents"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

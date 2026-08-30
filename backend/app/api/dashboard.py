@@ -5,8 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.deps import get_current_user, CurrentUser
-from app.models.identity import UserRoleEnum
-from app.models.project import Project, ProjectMember
+from app.models.project import Project
 from app.models.contract import Contract, ContractVersion, ContractItem
 from app.models.billing import (
     PaymentApplication, ApplicationStatus, RetentionEntry, RetentionEntryType,
@@ -35,20 +34,11 @@ def _empty_summary(recent_audit: list) -> dict:
 
 
 async def _accessible_project_ids(current: CurrentUser, db: AsyncSession) -> list[uuid.UUID]:
-    if UserRoleEnum.SYSTEM_ADMIN in current.roles:
-        result = await db.execute(
-            select(Project.id).where(
-                Project.organization_id == current.organization_id,
-                Project.deleted_at.is_(None),
-            )
+    result = await db.execute(
+        select(Project.id).where(
+            Project.deleted_at.is_(None),
         )
-    else:
-        result = await db.execute(
-            select(ProjectMember.project_id).where(
-                ProjectMember.user_id == current.user.id,
-                ProjectMember.status == "ACTIVE",
-            )
-        )
+    )
     return [r[0] for r in result.all()]
 
 
@@ -63,7 +53,6 @@ async def get_summary(
     # users (e.g. SYSTEM_ADMIN with no projects) still see their org's audit trail.
     audit_rows = (await db.execute(
         select(AuditLog)
-        .where(AuditLog.organization_id == current.organization_id)
         .order_by(AuditLog.created_at.desc())
         .limit(5)
     )).scalars().all()

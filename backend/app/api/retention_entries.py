@@ -57,28 +57,27 @@ async def create_entry(
 
     if entry_type == RetentionEntryType.RELEASE:
         entry = await create_release(
-            pid, uuid.UUID(req.contract_id), db, current.user.id, current.organization_id,
+            pid, uuid.UUID(req.contract_id), db, current.id,
             payment_application_id=uuid.UUID(req.payment_application_id) if req.payment_application_id else None,
             amount=req.amount, description=req.description,
         )
     elif entry_type == RetentionEntryType.ADJUSTMENT:
         entry = await create_adjustment(
-            pid, uuid.UUID(req.contract_id), db, current.user.id, current.organization_id,
+            pid, uuid.UUID(req.contract_id), db, current.id,
             amount=req.amount, description=req.description,
         )
     elif entry_type == RetentionEntryType.REVERSAL:
         if not req.reversal_of_id:
             raise HTTPException(status_code=400, detail="reversal_of_id required for REVERSAL")
         entry = await create_reversal(
-            uuid.UUID(req.reversal_of_id), db, current.user.id, current.organization_id,
+            uuid.UUID(req.reversal_of_id), db, current.id,
             description=req.description,
         )
     else:
         raise HTTPException(status_code=400, detail="HOLD entries are created automatically on post; use RELEASE/ADJUSTMENT/REVERSAL")
 
     db.add(AuditLog(
-        organization_id=current.organization_id,
-        user_id=current.user.id,
+        user_id=current.id,
         action="CREATE",
         resource_type="retention_entry",
         resource_id=str(entry.id),
