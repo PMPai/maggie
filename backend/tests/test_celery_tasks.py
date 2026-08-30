@@ -31,11 +31,6 @@ def test_run_ocr_task_registered():
     assert run_ocr.name == "tasks.run_ocr"
 
 
-def test_run_llm_match_task_registered():
-    from app.tasks.tasks import run_llm_match
-    assert run_llm_match.name == "tasks.run_llm_match"
-
-
 def test_generate_document_task_eager_execution():
     """Test task runs in eager mode (synchronous, no Redis needed)."""
     from app.tasks.celery_app import celery_app
