@@ -46,7 +46,7 @@ async def create_invoice(req: InvoiceCreate, current: CurrentUser = Depends(get_
         invoice_no=req.invoice_no, invoice_type=InvoiceType(req.invoice_type),
         issue_date=req.issue_date, due_date=req.due_date,
         amount_ex_tax=req.amount_ex_tax, tax_amount=req.tax_amount, amount_inc_tax=req.amount_inc_tax,
-        tax_rate=req.tax_rate, status=InvoiceStatus.DRAFT, source=req.source, notes=req.notes,
+        tax_rate=req.tax_rate, status=InvoiceStatus.PLANNED, source=req.source, notes=req.notes,
         created_by=current.id, updated_by=current.id,
     )
     db.add(inv)
@@ -92,8 +92,8 @@ async def update_invoice(invoice_id: str, req: InvoiceCreate, current: CurrentUs
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     await require_project_member(inv.project_id, current, db)
-    if inv.status != InvoiceStatus.DRAFT:
-        raise HTTPException(status_code=400, detail="Can only edit draft invoices")
+    if inv.status != InvoiceStatus.PLANNED:
+        raise HTTPException(status_code=400, detail="Can only edit planned invoices")
 
     if Decimal(req.amount_ex_tax) + Decimal(req.tax_amount) != Decimal(req.amount_inc_tax):
         raise HTTPException(status_code=400, detail="amount_ex_tax + tax_amount must equal amount_inc_tax")
@@ -159,8 +159,8 @@ async def issue_invoice(invoice_id: str, current: CurrentUser = Depends(get_curr
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     await require_project_member(inv.project_id, current, db)
-    if inv.status != InvoiceStatus.DRAFT:
-        raise HTTPException(status_code=400, detail="Only draft invoices can be issued")
+    if inv.status != InvoiceStatus.PLANNED:
+        raise HTTPException(status_code=400, detail="Only planned invoices can be issued")
     inv.status = InvoiceStatus.ISSUED
     if not inv.issue_date:
         inv.issue_date = date.today()
@@ -171,6 +171,28 @@ async def issue_invoice(invoice_id: str, current: CurrentUser = Depends(get_curr
         resource_type="invoice",
         resource_id=str(inv.id),
         detail={"invoice_no": inv.invoice_no},
+    ))
+    await db.commit()
+    await db.refresh(inv)
+    return _to_response(inv)
+
+
+@router.post("/{invoice_id}/send", response_model=InvoiceResponse)
+async def send_invoice(invoice_id: str, current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Transition an ISSUED invoice to SENT (delivered to customer)."""
+    iid = uuid.UUID(invoice_id)
+    result = await db.execute(select(Invoice).where(Invoice.id == iid))
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    await require_project_member(inv.project_id, current, db)
+    if inv.status != InvoiceStatus.ISSUED:
+        raise HTTPException(status_code=400, detail="Only issued invoices can be sent")
+    inv.status = InvoiceStatus.SENT
+    inv.updated_by = current.id
+    db.add(AuditLog(
+        user_id=current.id, action="SEND", resource_type="invoice",
+        resource_id=str(inv.id), detail={"invoice_no": inv.invoice_no},
     ))
     await db.commit()
     await db.refresh(inv)

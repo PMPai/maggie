@@ -15,9 +15,9 @@ class InvoiceType(enum.Enum):
 
 
 class InvoiceStatus(enum.Enum):
-    DRAFT = "DRAFT"
+    PLANNED = "PLANNED"
     ISSUED = "ISSUED"
-    PARTIALLY_PAID = "PARTIALLY_PAID"
+    SENT = "SENT"
     PAID = "PAID"
     VOID = "VOID"
 
@@ -35,7 +35,7 @@ class Invoice(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
     tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
     amount_inc_tax: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
     tax_rate: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False, default=Decimal("0.05"))
-    status: Mapped[InvoiceStatus] = mapped_column(Enum(InvoiceStatus), nullable=False, default=InvoiceStatus.DRAFT)
+    status: Mapped[InvoiceStatus] = mapped_column(Enum(InvoiceStatus), nullable=False, default=InvoiceStatus.PLANNED)
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="MANUAL")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     __table_args__ = (

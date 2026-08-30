@@ -9,9 +9,10 @@ from app.db.base import Base, TimestampMixin,  AuditMixin, SoftDeleteMixin
 
 
 class CollectionStatus(enum.Enum):
-    PENDING = "PENDING"
+    PLANNED = "PLANNED"
     CONFIRMED = "CONFIRMED"
-    REVERSED = "REVERSED"
+    RECEIVED = "RECEIVED"
+    CANCELLED = "CANCELLED"
 
 
 class Collection(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
@@ -25,7 +26,7 @@ class Collection(Base, TimestampMixin,  AuditMixin, SoftDeleteMixin):
     payment_method: Mapped[str] = mapped_column(String(32), nullable=False, default="BANK_TRANSFER")
     bank_reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[CollectionStatus] = mapped_column(Enum(CollectionStatus), nullable=False, default=CollectionStatus.CONFIRMED)
+    status: Mapped[CollectionStatus] = mapped_column(Enum(CollectionStatus), nullable=False, default=CollectionStatus.PLANNED)
     __table_args__ = (UniqueConstraint("contract_id", "receipt_no", name="uq_collections_contract_no"),)
 
 

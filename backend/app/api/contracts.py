@@ -223,6 +223,28 @@ async def approve_version(contract_id: str, version_id: str, current: CurrentUse
     contract.original_tax_amount = version.tax_amount
     contract.original_amount_inc_tax = version.amount_inc_tax
     contract.status = "ACTIVE"
+
+    # Auto-generate PLANNED collections from items with expected_payment_date
+    from app.models.collection import Collection, CollectionStatus
+    items_result = await db.execute(
+        select(ContractItem).where(
+            ContractItem.contract_version_id == vid,
+            ContractItem.expected_payment_date.isnot(None),
+            ContractItem.is_billable == True,
+            ContractItem.is_heading == False,
+        )
+    )
+    for item in items_result.scalars().all():
+        col = Collection(
+            project_id=contract.project_id, contract_id=cid,
+            receipt_no=f"PLN-{cid.hex[:8]}-{item.id.hex[:8]}",
+            receipt_date=item.expected_payment_date,
+            amount_received=item.line_amount or Decimal("0"),
+            status=CollectionStatus.PLANNED,
+            created_by=current.id, updated_by=current.id,
+        )
+        db.add(col)
+
     await db.commit()
     await db.refresh(version)
     return ContractVersionResponse(
