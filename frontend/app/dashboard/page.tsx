@@ -4,12 +4,15 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { DashboardSummary, Project } from '@/lib/types';
 import Link from 'next/link';
-import { PageHeader, StatCard, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
+import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 
-const PIE_COLORS = ['#F97316', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#F59E0B', '#06B6D4', '#EF4444'];
+// Design.md color system — only three accent colors
+const INDIGO = '#355C9A';
+const AMBER = '#C88719';
+const GREEN = '#2F7D68';
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -21,150 +24,172 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    api
-      .get<DashboardSummary>('/dashboard/summary')
-      .then(setSummary)
-      .catch(e => setError(e?.message || '加载失败'));
-    api
-      .get<Project[]>('/projects')
-      .then(setProjects)
-      .catch(() => {});
-    api
-      .get<{months: {month: string; expected: string; actual: string}[]}>('/dashboard/cash-flow')
-      .then(d => setCashFlow(d.months))
-      .catch(() => {});
-    api
-      .get<{months: {month: string; amount: string}[]}>('/dashboard/payment-trend')
-      .then(d => setPayTrend(d.months))
-      .catch(() => {});
+    api.get<DashboardSummary>('/dashboard/summary').then(setSummary).catch(e => setError(e?.message || '加载失败'));
+    api.get<Project[]>('/projects').then(setProjects).catch(() => {});
+    api.get<{months: {month: string; expected: string; actual: string}[]}>('/dashboard/cash-flow').then(d => setCashFlow(d.months)).catch(() => {});
+    api.get<{months: {month: string; amount: string}[]}>('/dashboard/payment-trend').then(d => setPayTrend(d.months)).catch(() => {});
   }, [user]);
 
   if (loading) return <PageLoader />;
-  if (!user) return <div className="p-8 text-slate-500">请先登录</div>;
+  if (!user) return <div className="p-8 text-slate-500">加载中...</div>;
 
-  const cards = summary
-    ? [
-        { label: '项目数', value: projects.length, href: '/projects', color: 'slate' as const },
-        { label: '合同总金额', value: formatMoney(summary.total_contract_amount), href: '/reports?report=project-summary', color: 'blue' as const },
-        { label: '累计批准请款', value: formatMoney(summary.approved_total), href: '/reports?report=uninvoiced', color: 'green' as const },
-        { label: '已开票', value: formatMoney(summary.invoiced_total), href: '/reports?report=invoice-outstanding', color: 'green' as const },
-        { label: '已收款', value: formatMoney(summary.collected_total), href: '/reports?report=collection-variances', color: 'green' as const },
-        { label: '未释放保留款', value: formatMoney(summary.retention_held_total), href: '/reports?report=retention-balances', color: 'orange' as const },
-        { label: '待批准变更', value: summary.pending_variations, href: '/approvals?resource_type=variation', color: 'orange' as const },
-        { label: '待审核请款', value: summary.pending_applications, href: '/approvals?resource_type=payment_application_pm', color: 'orange' as const },
-        { label: '待审核映射', value: summary.pending_mappings, href: '/approvals?resource_type=item_mapping', color: 'orange' as const },
-        { label: '超合同数量异常', value: summary.overclaim_exceptions, href: '/approvals?resource_type=overclaim', color: 'red' as const },
-      ]
-    : [];
+  // Design.md §A: 4 compact metric cards
+  const cards = summary ? [
+    { label: '合同总额', value: formatMoney(summary.total_contract_amount), href: '/reports?report=project-summary', color: INDIGO },
+    { label: '累计批准请款', value: formatMoney(summary.approved_total), href: '/reports?report=uninvoiced', color: INDIGO },
+    { label: '已收款', value: formatMoney(summary.collected_total), href: '/reports?report=collection-variances', color: GREEN },
+    { label: '待处理事项', value: (summary.pending_variations + summary.pending_applications + summary.overclaim_exceptions), href: '/approvals', color: AMBER },
+  ] : [];
 
-  const pieData = summary?.per_project.map(p => ({ name: p.code, value: parseFloat(p.contract_amount) || 0 })) || [];
-  const barData = summary?.per_project.map(p => ({
-    name: p.code,
-    '合同金额': parseFloat(p.contract_amount) || 0,
-    '累计请款': parseFloat(p.approved_total) || 0,
-  })) || [];
+  // Design.md §B: contract-claim-invoice-collect funnel bar
+  const funnelData = summary ? [
+    { name: '合同', value: parseFloat(summary.total_contract_amount) || 0, fill: INDIGO },
+    { name: '请款', value: parseFloat(summary.approved_total) || 0, fill: AMBER },
+    { name: '开票', value: parseFloat(summary.invoiced_total) || 0, fill: INDIGO },
+    { name: '收款', value: parseFloat(summary.collected_total) || 0, fill: GREEN },
+  ] : [];
+
+  // Design.md §D: cash flow — 松绿 bars = actual, 靛蓝 line = expected, 琥珀 = overdue
+  const cashFlowData = cashFlow.map(m => ({
+    month: m.month,
+    '实际收款': parseFloat(m.actual) || 0,
+    '预期收入': parseFloat(m.expected) || 0,
+  }));
 
   return (
     <div>
-      <PageHeader
-        title="管理驾驶舱"
-        subtitle={`当前用户：${user.display_name}（${user.roles.join(', ')}）`}
-      />
-
+      <PageHeader title="管理驾驶舱" subtitle={`单一本地用户 · ${projects.length} 个项目`} />
       {error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+      {/* §A: 4 compact metric cards — no more than 2 rows */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {cards.map((c, i) => (
           <Link key={i} href={c.href}>
-            <StatCard
-              label={c.label}
-              value={c.value}
-              icon="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-              color={c.color}
-            />
+            <div className="bg-white border border-slate-200 rounded-lg p-4 hover:border-slate-400 transition-colors cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-500 font-medium">{c.label}</span>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+              </div>
+              <p className="text-xl font-semibold text-slate-800 tabular-nums">{c.value}</p>
+            </div>
           </Link>
         ))}
       </div>
 
-      {summary && pieData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          <Card>
-            <CardHeader title="项目合同金额分布" />
-            <div className="card-body" style={{ height: 320 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={(e: any) => e.name}>
-                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v: any) => formatMoney(v)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-          <Card>
-            <CardHeader title="项目合同金额 vs 累计请款" />
-            <div className="card-body" style={{ height: 320 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} />
-                  <Tooltip formatter={(v: any) => formatMoney(v)} />
-                  <Legend />
-                  <Bar dataKey="合同金额" fill="#3B82F6" />
-                  <Bar dataKey="累计请款" fill="#F97316" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {cashFlow.length > 0 && (
+      {/* §B: 资金进度 funnel + per-project + §C: 待办 risk */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {/* Funnel bar */}
         <Card>
-          <CardHeader title="未来现金估算" />
+          <CardHeader title="资金进度：合同 → 请款 → 开票 → 收款" />
+          <div className="card-body" style={{ height: 280 }}>
+            {funnelData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={funnelData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E6E8E7" />
+                  <XAxis type="number" tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} tick={{ fontSize: 11, fill: '#66737F' }} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: '#24303A' }} width={50} />
+                  <Tooltip formatter={(v: any) => formatMoney(v)} contentStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={28}>
+                    {funnelData.map((d, i) => (
+                      <rect key={i} fill={d.fill} />
+                    ))}
+                  </Bar>
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState message="暂无资金进度数据" />
+            )}
+          </div>
+        </Card>
+
+        {/* §C: 待办与风险清单 */}
+        <Card>
+          <CardHeader title="待办与风险" subtitle="点击进入对应处理页" />
+          <div className="card-body">
+            {summary && (summary.pending_variations + summary.pending_applications + summary.overclaim_exceptions) === 0 ? (
+              <p className="text-sm text-slate-400">当前无待处理事项</p>
+            ) : (
+              <ul className="space-y-2">
+                {summary && summary.pending_variations > 0 && (
+                  <li>
+                    <Link href="/approvals?resource_type=variation" className="flex items-center justify-between text-sm hover:bg-slate-50 p-2 rounded">
+                      <span className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: AMBER }} />
+                        待批准变更
+                      </span>
+                      <span className="tabular-nums font-medium text-slate-600">{summary.pending_variations}</span>
+                    </Link>
+                  </li>
+                )}
+                {summary && summary.pending_applications > 0 && (
+                  <li>
+                    <Link href="/approvals?resource_type=payment_application_pm" className="flex items-center justify-between text-sm hover:bg-slate-50 p-2 rounded">
+                      <span className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: AMBER }} />
+                        待审核请款
+                      </span>
+                      <span className="tabular-nums font-medium text-slate-600">{summary.pending_applications}</span>
+                    </Link>
+                  </li>
+                )}
+                {summary && summary.overclaim_exceptions > 0 && (
+                  <li>
+                    <Link href="/approvals?resource_type=overclaim" className="flex items-center justify-between text-sm hover:bg-slate-50 p-2 rounded">
+                      <span className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#9C5D08' }} />
+                        超合同异常
+                      </span>
+                      <span className="tabular-nums font-medium text-slate-600">{summary.overclaim_exceptions}</span>
+                    </Link>
+                  </li>
+                )}
+                {summary && summary.invoice_outstanding_total !== '0' && parseFloat(summary.invoice_outstanding_total) > 0 && (
+                  <li>
+                    <Link href="/reports?report=invoice-outstanding" className="flex items-center justify-between text-sm hover:bg-slate-50 p-2 rounded">
+                      <span className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: AMBER }} />
+                        发票未收款余额
+                      </span>
+                      <span className="tabular-nums font-medium text-slate-600">{formatMoney(summary.invoice_outstanding_total)}</span>
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* §D: 现金流趋势主图 */}
+      {cashFlowData.length > 0 && (
+        <Card>
+          <CardHeader title="现金流趋势" subtitle="松绿 = 实际收款 · 靛蓝 = 预期收入 · 最近6月+未来6月" />
           <div className="card-body" style={{ height: 350 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cashFlow.map(m => ({ month: m.month, '预期收入': parseFloat(m.expected) || 0, '实际收款': parseFloat(m.actual) || 0 }))}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} />
-                <Tooltip formatter={(v: any) => formatMoney(v)} />
-                <Legend />
-                <Line type="monotone" dataKey="预期收入" stroke="#F97316" strokeWidth={2} />
-                <Line type="monotone" dataKey="实际收款" stroke="#10B981" strokeWidth={2} />
-              </LineChart>
+              <ComposedChart data={cashFlowData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E6E8E7" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#66737F' }} />
+                <YAxis tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} tick={{ fontSize: 11, fill: '#66737F' }} />
+                <Tooltip formatter={(v: any) => formatMoney(v)} contentStyle={{ fontSize: 12, border: '1px solid #E6E8E7' }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {/* 松绿 bars = actual */}
+                <Bar dataKey="实际收款" fill={GREEN} radius={[3, 3, 0, 0]} barSize={20} />
+                {/* 靛蓝 line = expected */}
+                <Line type="monotone" dataKey="预期收入" stroke={INDIGO} strokeWidth={2} dot={false} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </Card>
       )}
 
-      {payTrend.length > 0 && (
-        <Card>
-          <CardHeader title="请款趋势" />
-          <div className="card-body" style={{ height: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={payTrend.map(m => ({ month: m.month, '请款金额': parseFloat(m.amount) || 0 }))}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(v) => formatMoney(v).replace(/\.\d+/, '')} />
-                <Tooltip formatter={(v: any) => formatMoney(v)} />
-                <Legend />
-                <Line type="monotone" dataKey="请款金额" stroke="#3B82F6" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
-
+      {/* §E: 项目经营表 */}
       <Card>
-        <CardHeader title="项目列表" />
+        <CardHeader title="项目经营表" subtitle="点击项目编号进入详情 · 金额点击进入对应明细" />
         <div className="overflow-x-auto">
           {projects.length === 0 ? (
             <EmptyState message="暂无项目数据" />
           ) : (
-            <table className="data-table">
+            <table className="data-table text-sm">
               <thead>
                 <tr>
                   <th>项目编号</th>
@@ -172,6 +197,7 @@ export default function DashboardPage() {
                   <th>状态</th>
                   <th className="text-right">合同金额</th>
                   <th className="text-right">累计请款</th>
+                  <th className="text-right">保留款</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,7 +206,7 @@ export default function DashboardPage() {
                   return (
                     <tr key={p.id}>
                       <td>
-                        <Link href={`/projects/${p.id}`} className="text-blue-600 hover:underline">
+                        <Link href={`/projects/${p.id}`} className="hover:underline" style={{ color: INDIGO }}>
                           {p.internal_project_code}
                         </Link>
                       </td>
@@ -188,6 +214,7 @@ export default function DashboardPage() {
                       <td><StatusBadge status={p.status} /></td>
                       <td className="num">{pp ? formatMoney(pp.contract_amount) : '—'}</td>
                       <td className="num">{pp ? formatMoney(pp.approved_total) : '—'}</td>
+                      <td className="num">{pp ? formatMoney(pp.retention_held) : '—'}</td>
                     </tr>
                   );
                 })}
@@ -197,16 +224,17 @@ export default function DashboardPage() {
         </div>
       </Card>
 
+      {/* §F: 最近动态 */}
       {summary && summary.recent_audit.length > 0 && (
         <Card>
-          <CardHeader title="最近审计" />
+          <CardHeader title="最近动态" subtitle="最近5条审计事件" />
           <div className="card-body">
             <ul className="space-y-2">
-              {summary.recent_audit.map(a => (
-                <li key={a.id} className="text-sm text-slate-600 flex justify-between">
+              {summary.recent_audit.slice(0, 5).map(a => (
+                <li key={a.id} className="text-sm text-slate-600 flex justify-between border-b border-slate-100 pb-1">
                   <span>{a.action}</span>
-                  <span className="text-xs text-slate-400">
-                    {a.created_at?.substring(0, 16).replace('T', ' ')}
+                  <span className="text-xs text-slate-400 tabular-nums">
+                    {a.created_at?.substring(0, 16).replace('T', ' ') || '—'}
                   </span>
                 </li>
               ))}
