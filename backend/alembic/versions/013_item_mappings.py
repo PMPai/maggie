@@ -2,12 +2,17 @@
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from app.models.mapping import MappingType, MatchMethod, UnitCompatibility, MappingStatus
 
 revision = "013"
 down_revision = "012"
 branch_labels = None
 depends_on = None
+
+# Inlined enum values (models were removed in Phase 0)
+_MAPPING_TYPES = ["ONE_TO_ONE", "ONE_TO_MANY", "MANY_TO_ONE"]
+_MATCH_METHODS = ["MANUAL", "EXACT_ALIAS", "RULE", "FULLTEXT", "VECTOR", "LLM"]
+_UNIT_COMPAT = ["SAME", "CONVERTIBLE", "INCOMPATIBLE", "UNKNOWN"]
+_MAPPING_STATUS = ["SUGGESTED", "PENDING_REVIEW", "APPROVED", "REJECTED", "NEEDS_CLARIFICATION"]
 
 
 def upgrade():
@@ -18,12 +23,12 @@ def upgrade():
         sa.Column("project_id", UUID(as_uuid=True), sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False),
         sa.Column("contract_item_id", UUID(as_uuid=True), sa.ForeignKey("contract_items.id"), nullable=False),
         sa.Column("standard_item_id", UUID(as_uuid=True), sa.ForeignKey("standard_items.id"), nullable=False),
-        sa.Column("mapping_type", sa.Enum(MappingType), nullable=False, server_default="ONE_TO_ONE"),
-        sa.Column("match_method", sa.Enum(MatchMethod), nullable=False, server_default="MANUAL"),
-        sa.Column("unit_compatibility", sa.Enum(UnitCompatibility), nullable=False, server_default="SAME"),
+        sa.Column("mapping_type", sa.Enum(*_MAPPING_TYPES, name="mappingtype"), nullable=False, server_default="ONE_TO_ONE"),
+        sa.Column("match_method", sa.Enum(*_MATCH_METHODS, name="matchmethod"), nullable=False, server_default="MANUAL"),
+        sa.Column("unit_compatibility", sa.Enum(*_UNIT_COMPAT, name="unitcompatibility"), nullable=False, server_default="SAME"),
         sa.Column("conversion_factor", sa.Numeric(18, 6), nullable=False, server_default="1"),
         sa.Column("confidence", sa.Numeric(5, 2)),
-        sa.Column("status", sa.Enum(MappingStatus), nullable=False, server_default="SUGGESTED"),
+        sa.Column("status", sa.Enum(*_MAPPING_STATUS, name="mappingstatus"), nullable=False, server_default="SUGGESTED"),
         sa.Column("approved_by", UUID(as_uuid=True)),
         sa.Column("approved_at", UUID(as_uuid=True)),
         sa.Column("llm_reasoning", sa.Text),

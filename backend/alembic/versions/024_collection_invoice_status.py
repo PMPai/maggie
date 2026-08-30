@@ -13,14 +13,18 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Collections: PENDING→PLANNED, REVERSED→CANCELLED, add RECEIVED
+    # Collections: PENDING→PLANNED, REVERSED→CANCELLED
     op.execute("ALTER TYPE collectionstatus RENAME VALUE 'PENDING' TO 'PLANNED'")
     op.execute("ALTER TYPE collectionstatus RENAME VALUE 'REVERSED' TO 'CANCELLED'")
-    op.execute("ALTER TYPE collectionstatus ADD VALUE IF NOT EXISTS 'RECEIVED'")
-    # Invoices: DRAFT→PLANNED, add SENT, map PARTIALLY_PAID→ISSUED
+    # Invoices: DRAFT→PLANNED
     op.execute("ALTER TYPE invoicestatus RENAME VALUE 'DRAFT' TO 'PLANNED'")
-    op.execute("ALTER TYPE invoicestatus ADD VALUE IF NOT EXISTS 'SENT'")
     op.execute("UPDATE invoices SET status='ISSUED' WHERE status='PARTIALLY_PAID'")
+    # ADD VALUE must run outside a transaction — commit first, then add
+    op.execute("COMMIT")
+    op.execute("ALTER TYPE collectionstatus ADD VALUE IF NOT EXISTS 'RECEIVED'")
+    op.execute("ALTER TYPE invoicestatus ADD VALUE IF NOT EXISTS 'SENT'")
+    # Start a new transaction for the version update
+    op.execute("BEGIN")
 
 
 def downgrade() -> None:

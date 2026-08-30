@@ -5,12 +5,17 @@ Revision ID: 001
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
-from app.models.identity import UserRoleEnum
 
 revision = "001"
 down_revision = None
 branch_labels = None
 depends_on = None
+
+# Role names (was UserRoleEnum, now inlined since identity module was removed)
+_ROLE_NAMES = [
+    "SYSTEM_ADMIN", "CONTRACT_ADMIN", "FINANCE_REVIEWER", "FINANCE_USER",
+    "COST_REVIEWER", "PROJECT_MANAGER", "PROJECT_USER", "AUDITOR", "VIEWER",
+]
 
 
 def upgrade():
@@ -29,7 +34,7 @@ def upgrade():
     op.create_table(
         "roles",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("name", sa.Enum(UserRoleEnum), nullable=False, unique=True),
+        sa.Column("name", sa.Enum(*_ROLE_NAMES, name="userroleenum"), nullable=False, unique=True),
         sa.Column("description", sa.String(512)),
     )
 
@@ -64,7 +69,7 @@ def upgrade():
     )
 
     # Seed roles
-    for role in UserRoleEnum:
+    for role in _ROLE_NAMES:
         op.execute(
             sa.text("INSERT INTO roles (id, name) VALUES (gen_random_uuid(), :name)").bindparams(name=role.value)
         )

@@ -223,7 +223,7 @@ async def get_application(app_id: str, current: CurrentUser = Depends(get_curren
 async def list_applications(project_id: str = Query(None), my: bool = Query(False), current: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     conditions = [PaymentApplication.deleted_at.is_(None)]
 
-if project_id:
+    if project_id:
         pid = uuid.UUID(project_id)
         await require_project_member(pid, current, db)
         conditions.append(PaymentApplication.project_id == pid)

@@ -5,7 +5,6 @@ Revises: 021_drop_matching
 Create Date: 2026-08-30
 """
 from alembic import op
-import sqlalchemy as sa
 
 revision = "022_drop_auth"
 down_revision = "021_drop_matching"
@@ -14,18 +13,22 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Drop FK constraints that reference auth tables
+    op.execute("ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_project_manager_id_fkey")
     # Drop project_members
-    op.drop_table("project_members")
-    # Drop auth tables
-    op.drop_table("user_groups")
-    op.drop_table("group_roles")
-    op.drop_table("groups")
-    op.drop_table("user_roles")
-    op.drop_table("roles")
-    op.drop_table("users")
-    op.drop_table("organizations")
+    op.execute("DROP TABLE IF EXISTS project_members")
+    # Drop auth tables (CASCADE to handle FK dependencies)
+    op.execute("DROP TABLE IF EXISTS user_groups CASCADE")
+    op.execute("DROP TABLE IF EXISTS group_roles CASCADE")
+    op.execute("DROP TABLE IF EXISTS groups CASCADE")
+    op.execute("DROP TABLE IF EXISTS user_roles CASCADE")
+    op.execute("DROP TABLE IF EXISTS roles CASCADE")
+    op.execute("DROP TABLE IF EXISTS users CASCADE")
+    op.execute("DROP TABLE IF EXISTS organizations CASCADE")
+    # Drop project_manager_id column from projects
+    op.execute("ALTER TABLE projects DROP COLUMN IF EXISTS project_manager_id")
     # Remove organization_id columns from all business tables
-    for table in [
+    org_tables = [
         "projects", "companies", "contracts", "contract_versions",
         "contract_items", "payment_rules", "payment_applications",
         "payment_application_lines", "milestone_events", "retention_entries",
@@ -35,11 +38,9 @@ def upgrade() -> None:
         "financial_adjustments", "approval_workflows", "approval_steps",
         "approvals", "audit_logs", "documents", "storage_roots",
         "document_links", "document_templates", "generated_documents",
-    ]:
-        try:
-            op.drop_column(table, "organization_id")
-        except Exception:
-            pass  # column may not exist on some tables
+    ]
+    for table in org_tables:
+        op.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS organization_id")
 
 
 def downgrade() -> None:
