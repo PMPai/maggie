@@ -13,7 +13,6 @@ from app.models.contract import (
     Contract, ContractVersion, ContractVersionType, ContractVersionStatus,
     ContractItem, CalculationMethod,
 )
-from app.models.identity import Organization
 from app.models.project import Project
 from app.models.variation import (
     Variation, VariationType, VariationStatus,
@@ -23,12 +22,7 @@ from app.services.variation_service import get_approved_variation_qty
 
 
 async def _setup_base(db):
-    org = Organization(code=f"org-{uuid.uuid4().hex[:8]}", name="Test Org")
-    db.add(org)
-    await db.flush()
-
     project = Project(
-        organization_id=org.id,
         internal_project_code=f"P-{uuid.uuid4().hex[:8]}",
         project_name="Test Project",
     )
@@ -36,7 +30,6 @@ async def _setup_base(db):
     await db.flush()
 
     contract = Contract(
-        organization_id=org.id,
         project_id=project.id,
         external_contract_no=f"C-{uuid.uuid4().hex[:8]}",
         contract_name="Test Contract",
@@ -45,7 +38,6 @@ async def _setup_base(db):
     await db.flush()
 
     version = ContractVersion(
-        organization_id=org.id,
         contract_id=contract.id,
         version_no=1,
         version_type=ContractVersionType.SIGNED_CONTRACT,
@@ -57,7 +49,6 @@ async def _setup_base(db):
     await db.flush()
 
     item = ContractItem(
-        organization_id=org.id,
         contract_version_id=version.id,
         line_no="1",
         source_description="Excavation",
@@ -68,15 +59,14 @@ async def _setup_base(db):
     )
     db.add(item)
     await db.commit()
-    return org, project, contract, version, item
+    return project, contract, version, item
 
 
 @pytest.mark.asyncio
 async def test_unapproved_variation_returns_zero_qty(db):
-    org, project, contract, version, item = await _setup_base(db)
+    project, contract, version, item = await _setup_base(db)
 
     variation = Variation(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         contract_item_id=item.id,
@@ -94,10 +84,9 @@ async def test_unapproved_variation_returns_zero_qty(db):
 
 @pytest.mark.asyncio
 async def test_approved_variation_returns_qty(db):
-    org, project, contract, version, item = await _setup_base(db)
+    project, contract, version, item = await _setup_base(db)
 
     variation = Variation(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         contract_item_id=item.id,
@@ -115,11 +104,10 @@ async def test_approved_variation_returns_qty(db):
 
 @pytest.mark.asyncio
 async def test_unapproved_variation_does_not_affect_available_qty(db):
-    org, project, contract, version, item = await _setup_base(db)
+    project, contract, version, item = await _setup_base(db)
 
     # An under-review variation that would, if approved, expand the contract qty.
     variation = Variation(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         contract_item_id=item.id,
@@ -148,10 +136,9 @@ async def test_unapproved_variation_does_not_affect_available_qty(db):
 
 @pytest.mark.asyncio
 async def test_approved_variation_allows_extra_claim(db):
-    org, project, contract, version, item = await _setup_base(db)
+    project, contract, version, item = await _setup_base(db)
 
     variation = Variation(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         contract_item_id=item.id,

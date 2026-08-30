@@ -7,19 +7,18 @@ import uuid
 async def test_patch_draft_version_updates_fields(client, db, auth_user):
     from app.models.project import Project
     from app.models.contract import Contract, ContractVersion, ContractVersionStatus, TaxMode, ContractVersionType
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-P",
+    proj = Project(internal_project_code="25-P",
                    project_name="P", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="P-1", contract_name="P",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                          version_type=ContractVersionType.QUOTATION, amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
                          status=ContractVersionStatus.DRAFT,
                          created_by=user_id, updated_by=user_id)
@@ -37,19 +36,18 @@ async def test_patch_draft_version_updates_fields(client, db, auth_user):
 async def test_patch_approved_version_returns_409(client, db, auth_user):
     from app.models.project import Project
     from app.models.contract import Contract, ContractVersion, ContractVersionStatus, TaxMode, ContractVersionType
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-P2",
+    proj = Project(internal_project_code="25-P2",
                    project_name="P2", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="P-2", contract_name="P2",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                          version_type=ContractVersionType.SIGNED_CONTRACT, amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
                          status=ContractVersionStatus.APPROVED,
                          created_by=user_id, updated_by=user_id)
@@ -63,19 +61,18 @@ async def test_patch_approved_version_returns_409(client, db, auth_user):
 async def test_patch_version_422_on_amount_mismatch(client, db, auth_user):
     from app.models.project import Project
     from app.models.contract import Contract, ContractVersion, ContractVersionStatus, TaxMode, ContractVersionType
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-P3",
+    proj = Project(internal_project_code="25-P3",
                    project_name="P3", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="P-3", contract_name="P3",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                          version_type=ContractVersionType.QUOTATION, amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
                          status=ContractVersionStatus.DRAFT,
                          created_by=user_id, updated_by=user_id)
@@ -90,19 +87,18 @@ async def test_patch_version_422_on_amount_mismatch(client, db, auth_user):
 async def test_patch_version_submit_to_under_review(client, db, auth_user):
     from app.models.project import Project
     from app.models.contract import Contract, ContractVersion, ContractVersionStatus, TaxMode, ContractVersionType
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-P4",
+    proj = Project(internal_project_code="25-P4",
                    project_name="P4", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="P-4", contract_name="P4",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                          version_type=ContractVersionType.QUOTATION, amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
                          status=ContractVersionStatus.DRAFT,
                          created_by=user_id, updated_by=user_id)
@@ -117,19 +113,18 @@ async def test_patch_version_submit_to_under_review(client, db, auth_user):
 async def test_patch_version_submit_approved_rejected(client, db, auth_user):
     from app.models.project import Project
     from app.models.contract import Contract, ContractVersion, ContractVersionStatus, TaxMode, ContractVersionType
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-P5",
+    proj = Project(internal_project_code="25-P5",
                    project_name="P5", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="P-5", contract_name="P5",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                          version_type=ContractVersionType.SIGNED_CONTRACT, amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
                          status=ContractVersionStatus.APPROVED,
                          created_by=user_id, updated_by=user_id)
@@ -144,19 +139,18 @@ async def test_patch_version_submit_approved_rejected(client, db, auth_user):
 async def test_patch_version_status_to_approved_rejected(client, db, auth_user):
     from app.models.project import Project
     from app.models.contract import Contract, ContractVersion, ContractVersionStatus, TaxMode, ContractVersionType
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-P6",
+    proj = Project(internal_project_code="25-P6",
                    project_name="P6", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="P-6", contract_name="P6",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                          version_type=ContractVersionType.QUOTATION, amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
                          status=ContractVersionStatus.DRAFT,
                          created_by=user_id, updated_by=user_id)
@@ -165,50 +159,3 @@ async def test_patch_version_status_to_approved_rejected(client, db, auth_user):
     # DRAFT -> APPROVED not allowed via PATCH (use approve endpoint)
     r = await client.patch(f"/api/contracts/contract-versions/{cv.id}", json={"status": "APPROVED"})
     assert r.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_patch_version_rejects_non_member(client, db, auth_user):
-    """A CONTRACT_ADMIN who is not a project member must be rejected (403)."""
-    from app.models.project import Project
-    from app.models.contract import Contract, ContractVersion, ContractVersionStatus, TaxMode, ContractVersionType
-    from app.models.identity import User, Role, UserRole, UserRoleEnum
-    from app.auth.tokens import create_access_token
-    from httpx import AsyncClient, ASGITransport
-    from app.main import app
-
-    org_id = uuid.UUID(auth_user["org_id"])
-    user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-PNM",
-                   project_name="PNM", currency="TWD", default_tax_rate="0.05",
-                   created_by=user_id, updated_by=user_id)
-    db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
-                        external_contract_no="PNM-1", contract_name="PNM",
-                        currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
-                        original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
-                        created_by=user_id, updated_by=user_id)
-    db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
-                         version_type=ContractVersionType.QUOTATION, amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
-                         status=ContractVersionStatus.DRAFT,
-                         created_by=user_id, updated_by=user_id)
-    db.add(cv); await db.commit()
-
-    # Second user: CONTRACT_ADMIN but NOT a ProjectMember of proj.
-    other = User(id=uuid.uuid4(), organization_id=org_id, email="nonmember@example.com",
-                 display_name="Non Member", password_hash="x", status="ACTIVE")
-    db.add(other); await db.flush()
-    role = Role(id=uuid.uuid4(), name=UserRoleEnum.CONTRACT_ADMIN)
-    db.add(role); await db.flush()
-    db.add(UserRole(user_id=other.id, role_id=role.id, organization_id=org_id))
-    await db.commit()
-
-    token = create_access_token(other.id, org_id, [UserRoleEnum.CONTRACT_ADMIN])
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as other_client:
-        other_client.cookies.set("access_token", token)
-        r = await other_client.patch(f"/api/contracts/contract-versions/{cv.id}",
-                                     json={"amount_inc_tax": "2000"})
-    assert r.status_code == 403
-    assert "member" in r.json()["detail"].lower()

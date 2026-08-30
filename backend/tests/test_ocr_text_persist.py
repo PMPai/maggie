@@ -18,14 +18,14 @@ from app.services.ocr.protocol import OCRResult
 async def _seed_document(db, *, original_name: str, sha256: str, ocr_status: str = "PENDING"):
     """Insert a Document + StorageRoot row in the test DB and return its id."""
     root = StorageRoot(
-        organization_id=uuid.uuid4(), code="TEST", base_path="/tmp/test",
+        code="TEST", base_path="/tmp/test",
         storage_type="LOCAL", is_active=True, read_only=False, health_status="HEALTHY",
         created_by=uuid.uuid4(), updated_by=uuid.uuid4(),
     )
     db.add(root)
     await db.flush()
     doc = Document(
-        organization_id=root.organization_id, project_id=None, storage_root_id=root.id,
+        project_id=None, storage_root_id=root.id,
         original_name=original_name, stored_name=f"{sha256}.pdf",
         relative_path=f"test/{sha256}.pdf",
         document_type="CONTRACT", mime_type="application/pdf", file_extension="pdf",

@@ -5,8 +5,35 @@ import { api } from '@/lib/api';
 import type { Invoice, Collection, Application, Contract } from '@/lib/types';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatMoney } from '@/components/ui/common';
+import { PageHeader, Card, CardHeader, EmptyState, formatMoney } from '@/components/ui/common';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
+
+const INDIGO = '#355C9A';
+const AMBER = '#C88719';
+const GREEN = '#2F7D68';
+
+function invoiceStatusBadge(status: string) {
+  const map: Record<string, { label: string; bg: string; text: string }> = {
+    PLANNED: { label: '已排程', bg: '#EAF0FA', text: INDIGO },
+    ISSUED: { label: '已开票', bg: '#FFF4DB', text: AMBER },
+    SENT: { label: '已寄送', bg: '#E7F3EE', text: GREEN },
+    PAID: { label: '已结清', bg: '#E7F3EE', text: GREEN },
+    VOID: { label: '已作废', bg: '#E6E8E7', text: '#66737F' },
+  };
+  const s = map[status] || { label: status, bg: '#E6E8E7', text: '#66737F' };
+  return <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: s.bg, color: s.text }}>{s.label}</span>;
+}
+
+function collectionStatusBadge(status: string) {
+  const map: Record<string, { label: string; bg: string; text: string }> = {
+    PLANNED: { label: '已排程', bg: '#EAF0FA', text: INDIGO },
+    CONFIRMED: { label: '已确认', bg: '#FFF4DB', text: AMBER },
+    RECEIVED: { label: '已收款', bg: '#E7F3EE', text: GREEN },
+    CANCELLED: { label: '已取消', bg: '#E6E8E7', text: '#66737F' },
+  };
+  const s = map[status] || { label: status, bg: '#E6E8E7', text: '#66737F' };
+  return <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: s.bg, color: s.text }}>{s.label}</span>;
+}
 
 export default function InvoicesPage() {
   const { user, loading } = useAuth();
@@ -61,17 +88,30 @@ export default function InvoicesPage() {
     finally { setBusy(false); }
   };
 
+  const handleInvoiceAction = async (id: string, action: 'issue' | 'send') => {
+    setBusy(true); setError('');
+    try {
+      if (action === 'issue') {
+        await api.post(`/invoices/${id}/issue`);
+      } else {
+        await api.post(`/invoices/${id}/send`);
+      }
+      load();
+    } catch (e: any) { setError(e?.message || '操作失败'); }
+    finally { setBusy(false); }
+  };
+
   if (loading) return <div className="p-8">加载中...</div>;
-  if (!user) return <div className="p-8">请先登录</div>;
+  if (!user) return <div className="p-8">加载中...</div>;
 
   const totalInvoiced = invoices.reduce((s, i) => s + Number(i.amount_inc_tax || 0), 0);
-  const totalCollected = collections.reduce((s, c) => s + Number(c.amount_received || 0), 0);
+  const totalCollected = collections.filter(c => c.status === 'RECEIVED').reduce((s, c) => s + Number(c.amount_received || 0), 0);
   const variance = totalInvoiced - totalCollected;
 
   return (
     <main className="p-8 max-w-6xl mx-auto">
       <Link href={`/projects/${projectId}`} className="text-sm text-slate-500 hover:text-slate-700">← 返回项目</Link>
-      <PageHeader title="发票与收款" />
+      <PageHeader title="发票与收款" subtitle="发票状态流：已排程 → 已开票 → 已寄送" />
       {error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
 
       <div className="mb-4">
@@ -80,7 +120,7 @@ export default function InvoicesPage() {
 
       {showCreate && (
         <Card className="mb-4">
-          <CardHeader title="从已批准请款创建发票" />
+          <CardHeader title="从已批准请款创建发票（PLANNED）" />
           <div className="card-body space-y-3">
             <div>
               <label className="block text-xs text-slate-500 mb-1">选择已过账请款单</label>
@@ -105,35 +145,41 @@ export default function InvoicesPage() {
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         <Card>
-          <CardHeader title="发票" />
+          <CardHeader title="发票" subtitle="PLANNED → ISSUED → SENT" />
           <div className="card-body">
             {invoices.length === 0 ? (
               <EmptyState message="暂无发票" />
             ) : (
-              <table className="data-table">
+              <table className="data-table text-xs">
                 <thead>
                   <tr>
                     <th>发票编号</th>
-                    <th>类型</th>
                     <th>开票日期</th>
-                    <th className="text-right">未税</th>
-                    <th className="text-right">税额</th>
                     <th className="text-right">含税</th>
-                    <th>来源</th>
                     <th>状态</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map(i => (
                     <tr key={i.id}>
                       <td className="font-mono">{i.invoice_no}</td>
-                      <td>{i.invoice_type}</td>
-                      <td>{i.issue_date}</td>
-                      <td className="num">{formatMoney(i.amount_ex_tax)}</td>
-                      <td className="num">{formatMoney(i.tax_amount)}</td>
+                      <td>{i.issue_date || '—'}</td>
                       <td className="num">{formatMoney(i.amount_inc_tax)}</td>
-                      <td>{i.source}</td>
-                      <td><StatusBadge status={i.status} /></td>
+                      <td>{invoiceStatusBadge(i.status)}</td>
+                      <td>
+                        {i.status === 'PLANNED' && (
+                          <button onClick={() => handleInvoiceAction(i.id, 'issue')} disabled={busy}
+                            className="text-xs hover:underline" style={{ color: AMBER }}>开票</button>
+                        )}
+                        {i.status === 'ISSUED' && (
+                          <button onClick={() => handleInvoiceAction(i.id, 'send')} disabled={busy}
+                            className="text-xs hover:underline" style={{ color: GREEN }}>寄送</button>
+                        )}
+                        {(i.status === 'SENT' || i.status === 'PAID' || i.status === 'VOID') && (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -143,12 +189,12 @@ export default function InvoicesPage() {
         </Card>
 
         <Card>
-          <CardHeader title="收款" />
+          <CardHeader title="收款" subtitle="PLANNED → CONFIRMED → RECEIVED" />
           <div className="card-body">
             {collections.length === 0 ? (
               <EmptyState message="暂无收款记录" />
             ) : (
-              <table className="data-table">
+              <table className="data-table text-xs">
                 <thead>
                   <tr>
                     <th>收款编号</th>
@@ -161,9 +207,9 @@ export default function InvoicesPage() {
                   {collections.map(c => (
                     <tr key={c.id}>
                       <td className="font-mono">{c.receipt_no}</td>
-                      <td>{c.receipt_date}</td>
+                      <td>{c.receipt_date || '—'}</td>
                       <td className="num">{formatMoney(c.amount_received)}</td>
-                      <td><StatusBadge status={c.status} /></td>
+                      <td>{collectionStatusBadge(c.status)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -174,9 +220,9 @@ export default function InvoicesPage() {
       </div>
 
       <Card>
-        <CardHeader title="差异" />
+        <CardHeader title="差异" subtitle="已开票 - 已收款（RECEIVED）" />
         <div className="card-body">
-          <table className="data-table">
+          <table className="data-table text-sm">
             <thead>
               <tr>
                 <th>项目</th>
@@ -189,12 +235,12 @@ export default function InvoicesPage() {
                 <td className="num">{formatMoney(totalInvoiced)}</td>
               </tr>
               <tr>
-                <td>已收款金额</td>
+                <td>已收款金额（RECEIVED）</td>
                 <td className="num">{formatMoney(totalCollected)}</td>
               </tr>
               <tr>
                 <td className="font-semibold">差异(应收 - 已收)</td>
-                <td className={`num font-semibold ${variance > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                <td className={`num font-semibold ${variance > 0 ? '' : ''}`} style={{ color: variance > 0 ? AMBER : GREEN }}>
                   {formatMoney(variance)}
                 </td>
               </tr>

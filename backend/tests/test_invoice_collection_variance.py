@@ -13,7 +13,6 @@ import pytest
 from sqlalchemy import select
 
 from app.models.contract import Contract
-from app.models.identity import Organization
 from app.models.project import Project
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.models.collection import (
@@ -24,12 +23,7 @@ from app.services.collection_service import get_invoice_outstanding
 
 
 async def _setup_contract(db):
-    org = Organization(code=f"org-{uuid.uuid4().hex[:8]}", name="Test Org")
-    db.add(org)
-    await db.flush()
-
     project = Project(
-        organization_id=org.id,
         internal_project_code=f"P-{uuid.uuid4().hex[:8]}",
         project_name="Test Project",
     )
@@ -37,22 +31,20 @@ async def _setup_contract(db):
     await db.flush()
 
     contract = Contract(
-        organization_id=org.id,
         project_id=project.id,
         external_contract_no=f"C-{uuid.uuid4().hex[:8]}",
         contract_name="Test Contract",
     )
     db.add(contract)
     await db.commit()
-    return org, project, contract
+    return project, contract
 
 
 @pytest.mark.asyncio
 async def test_invoice_outstanding_reflects_variance(db):
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
 
     invoice = Invoice(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         invoice_no="INV-001",
@@ -70,7 +62,6 @@ async def test_invoice_outstanding_reflects_variance(db):
     await db.flush()
 
     collection = Collection(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         receipt_no="R-001",
@@ -98,10 +89,9 @@ async def test_invoice_outstanding_reflects_variance(db):
 @pytest.mark.asyncio
 async def test_variance_is_not_auto_reconciled(db):
     """No FinancialAdjustment is created automatically for the variance."""
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
 
     invoice = Invoice(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         invoice_no="INV-002",
@@ -117,7 +107,6 @@ async def test_variance_is_not_auto_reconciled(db):
     await db.flush()
 
     collection = Collection(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         receipt_no="R-002",
@@ -150,10 +139,9 @@ async def test_variance_is_not_auto_reconciled(db):
 
 @pytest.mark.asyncio
 async def test_full_payment_zero_outstanding(db):
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
 
     invoice = Invoice(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         invoice_no="INV-003",
@@ -169,7 +157,6 @@ async def test_full_payment_zero_outstanding(db):
     await db.flush()
 
     collection = Collection(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         receipt_no="R-003",

@@ -20,9 +20,9 @@ from app.models.variation import Variation, VariationStatus, VariationType
 
 
 @pytest.mark.asyncio
-async def test_pending_approvals_unauthenticated(client):
+async def test_pending_approvals_no_auth_required(client):
     r = await client.get("/api/approvals/pending")
-    assert r.status_code == 401
+    assert r.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -37,19 +37,18 @@ async def test_pending_approvals_empty(client, db, auth_user):
 @pytest.mark.asyncio
 async def test_pending_approvals_returns_uniform_shape(client, db, auth_user):
     """Each item has the uniform keys required by the frontend table."""
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-999",
+    proj = Project(internal_project_code="25-999",
                    project_name="Test", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="T-1", contract_name="Test Contract",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    var = Variation(organization_id=org_id, project_id=proj.id, contract_id=contract.id,
+    var = Variation(project_id=proj.id, contract_id=contract.id,
                     variation_no="V-1", variation_type=VariationType.SCOPE_CHANGE, description="extra work",
                     amount_ex_tax="100", tax_amount="5", amount_inc_tax="105",
                     quantity_delta="0", status=VariationStatus.UNDER_REVIEW, effective_date=datetime.utcnow().date(),
@@ -72,19 +71,18 @@ async def test_pending_approvals_returns_uniform_shape(client, db, auth_user):
 @pytest.mark.asyncio
 async def test_pending_approvals_overclaim_scenario(client, db, auth_user):
     """Overclaim (cumulative_approved_quantity > contract_quantity) surfaces as a pending item."""
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-OC",
+    proj = Project(internal_project_code="25-OC",
                    project_name="Overclaim Test", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="T-OC", contract_name="OC Contract",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="1000", original_tax_amount="50", original_amount_inc_tax="1050",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    version = ContractVersion(organization_id=org_id, contract_id=contract.id,
+    version = ContractVersion(contract_id=contract.id,
                                version_no=1, version_type=ContractVersionType.SIGNED_CONTRACT,
                                status=ContractVersionStatus.APPROVED,
                                amount_ex_tax="1000", tax_amount="50", amount_inc_tax="1050",
@@ -92,13 +90,13 @@ async def test_pending_approvals_overclaim_scenario(client, db, auth_user):
     db.add(version); await db.flush()
     contract.active_version_id = version.id
     await db.flush()
-    item = ContractItem(organization_id=org_id, contract_version_id=version.id,
+    item = ContractItem(contract_version_id=version.id,
                         line_no="1", source_description="Excavation work",
                         unit="M3", contract_quantity=Decimal("10"),
                         unit_price=Decimal("100"), calculation_method=CalculationMethod.QUANTITY,
                         created_by=user_id, updated_by=user_id)
     db.add(item); await db.flush()
-    app = PaymentApplication(organization_id=org_id, project_id=proj.id,
+    app = PaymentApplication(project_id=proj.id,
                              contract_id=contract.id, contract_version_id=version.id,
                              application_no="APP-OC-1", period_no=1,
                              period_start=date(2026, 1, 1), period_end=date(2026, 1, 31),
@@ -106,7 +104,7 @@ async def test_pending_approvals_overclaim_scenario(client, db, auth_user):
                              status=ApplicationStatus.DRAFT,
                              created_by=user_id, updated_by=user_id)
     db.add(app); await db.flush()
-    line = PaymentApplicationLine(organization_id=org_id,
+    line = PaymentApplicationLine(
                                    payment_application_id=app.id, contract_item_id=item.id,
                                    contract_version_id=version.id,
                                    description_snapshot="Excavation work",

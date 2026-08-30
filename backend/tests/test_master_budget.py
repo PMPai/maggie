@@ -6,9 +6,10 @@ from decimal import Decimal
 
 
 @pytest.mark.asyncio
-async def test_master_budget_unauthenticated(client, db):
+async def test_master_budget_no_auth_required(client, db):
     r = await client.get(f"/api/projects/{uuid.uuid4()}/master-budget")
-    assert r.status_code == 401
+    # 404 because the project doesn't exist — but no 401 auth rejection
+    assert r.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -18,26 +19,25 @@ async def test_master_budget_returns_tree_shape(client, db, auth_user):
         Contract, ContractVersion, ContractVersionStatus, ContractVersionType,
         ContractItem, CalculationMethod, TaxMode,
     )
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
-    proj = Project(organization_id=org_id, internal_project_code="25-MB",
+    proj = Project(internal_project_code="25-MB",
                    project_name="MB Test", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="MB-1", contract_name="MB Contract",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="10000", original_tax_amount="500", original_amount_inc_tax="10500",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                         version_type=ContractVersionType.SIGNED_CONTRACT,
                         amount_ex_tax="10000", tax_amount="500", amount_inc_tax="10500",
                         status=ContractVersionStatus.APPROVED,
                         created_by=user_id, updated_by=user_id)
     db.add(cv); await db.flush()
     contract.active_version_id = cv.id
-    item = ContractItem(organization_id=org_id, contract_version_id=cv.id, line_no="1",
+    item = ContractItem(contract_version_id=cv.id, line_no="1",
                         source_description="Test item", unit="m", contract_quantity=Decimal("100.0000"),
                         unit_price=Decimal("100.00"), line_amount=Decimal("10000.00"),
                         calculation_method=CalculationMethod.QUANTITY,
@@ -69,20 +69,19 @@ async def test_master_budget_margin_and_overclaim(client, db, auth_user):
         PaymentApplication, PaymentApplicationLine, ApplicationStatus,
     )
 
-    org_id = uuid.UUID(auth_user["org_id"])
     user_id = uuid.UUID(auth_user["id"])
 
-    proj = Project(organization_id=org_id, internal_project_code="25-MB2",
+    proj = Project(internal_project_code="25-MB2",
                    project_name="MB Margin Test", currency="TWD", default_tax_rate="0.05",
                    created_by=user_id, updated_by=user_id)
     db.add(proj); await db.flush()
-    contract = Contract(organization_id=org_id, project_id=proj.id,
+    contract = Contract(project_id=proj.id,
                         external_contract_no="MB-2", contract_name="MB Margin Contract",
                         currency="TWD", tax_mode=TaxMode.EXCLUSIVE, tax_rate="0.05",
                         original_amount_ex_tax="20000", original_tax_amount="1000", original_amount_inc_tax="21000",
                         created_by=user_id, updated_by=user_id)
     db.add(contract); await db.flush()
-    cv = ContractVersion(organization_id=org_id, contract_id=contract.id, version_no=1,
+    cv = ContractVersion(contract_id=contract.id, version_no=1,
                          version_type=ContractVersionType.SIGNED_CONTRACT,
                          amount_ex_tax="20000", tax_amount="1000", amount_inc_tax="21000",
                          status=ContractVersionStatus.APPROVED,
@@ -91,7 +90,7 @@ async def test_master_budget_margin_and_overclaim(client, db, auth_user):
     contract.active_version_id = cv.id
 
     # Row 1: item with unit_cost -> margin computed, normal (none)
-    item1 = ContractItem(organization_id=org_id, contract_version_id=cv.id, line_no="1",
+    item1 = ContractItem(contract_version_id=cv.id, line_no="1",
                          source_description="Costed work", unit="m",
                          contract_quantity=Decimal("100.0000"), unit_price=Decimal("100.00"),
                          unit_cost=Decimal("80.00"), line_amount=Decimal("10000.00"),
@@ -99,7 +98,7 @@ async def test_master_budget_margin_and_overclaim(client, db, auth_user):
                          created_by=user_id, updated_by=user_id)
     db.add(item1); await db.flush()
     # Row 2: overclaim (cumulative > available), no unit_cost
-    item2 = ContractItem(organization_id=org_id, contract_version_id=cv.id, line_no="2",
+    item2 = ContractItem(contract_version_id=cv.id, line_no="2",
                          source_description="Overclaim work", unit="m",
                          contract_quantity=Decimal("10.0000"), unit_price=Decimal("100.00"),
                          line_amount=Decimal("1000.00"),
@@ -107,7 +106,7 @@ async def test_master_budget_margin_and_overclaim(client, db, auth_user):
                          created_by=user_id, updated_by=user_id)
     db.add(item2); await db.flush()
     # Row 3: overdue (expected_payment_date in the past), with unit_cost
-    item3 = ContractItem(organization_id=org_id, contract_version_id=cv.id, line_no="3",
+    item3 = ContractItem(contract_version_id=cv.id, line_no="3",
                          source_description="Overdue work", unit="m",
                          contract_quantity=Decimal("20.0000"), unit_price=Decimal("100.00"),
                          unit_cost=Decimal("70.00"), line_amount=Decimal("2000.00"),
@@ -117,7 +116,7 @@ async def test_master_budget_margin_and_overclaim(client, db, auth_user):
     db.add(item3); await db.flush()
 
     # POSTED payment application (period 1)
-    app = PaymentApplication(organization_id=org_id, project_id=proj.id,
+    app = PaymentApplication(project_id=proj.id,
                              contract_id=contract.id, contract_version_id=cv.id,
                              application_no="APP-MB-1", period_no=1,
                              period_start=date(2026, 1, 1), period_end=date(2026, 1, 31),
@@ -127,7 +126,7 @@ async def test_master_budget_margin_and_overclaim(client, db, auth_user):
     db.add(app); await db.flush()
 
     # Line 2: cumulative = 15 > available 10 (overclaim)
-    line2 = PaymentApplicationLine(organization_id=org_id,
+    line2 = PaymentApplicationLine(
                                    payment_application_id=app.id, contract_item_id=item2.id,
                                    contract_version_id=cv.id,
                                    description_snapshot="Overclaim work",

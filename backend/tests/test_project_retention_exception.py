@@ -10,19 +10,13 @@ from decimal import Decimal
 import pytest
 
 from app.models.billing import RetentionEntry, RetentionEntryType
-from app.models.identity import Organization
 from app.models.project import Project
 from app.models.contract import Contract
 from app.services.retention_service import get_balance
 
 
 async def _setup_contract(db):
-    org = Organization(code=f"org-{uuid.uuid4().hex[:8]}", name="Test Org")
-    db.add(org)
-    await db.flush()
-
     project = Project(
-        organization_id=org.id,
         internal_project_code=f"P-{uuid.uuid4().hex[:8]}",
         project_name="Test Project",
     )
@@ -30,19 +24,17 @@ async def _setup_contract(db):
     await db.flush()
 
     contract = Contract(
-        organization_id=org.id,
         project_id=project.id,
         external_contract_no=f"C-{uuid.uuid4().hex[:8]}",
         contract_name="Test Contract",
     )
     db.add(contract)
     await db.commit()
-    return org, project, contract
+    return project, contract
 
 
-def _hold(db, org, project, contract, amount, description=None):
+def _hold(db, project, contract, amount, description=None):
     entry = RetentionEntry(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         entry_type=RetentionEntryType.HOLD,
@@ -53,9 +45,8 @@ def _hold(db, org, project, contract, amount, description=None):
     return entry
 
 
-def _release(db, org, project, contract, amount, description=None):
+def _release(db, project, contract, amount, description=None):
     entry = RetentionEntry(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         entry_type=RetentionEntryType.RELEASE,
@@ -66,9 +57,8 @@ def _release(db, org, project, contract, amount, description=None):
     return entry
 
 
-def _reversal(db, org, project, contract, amount, reversal_of_id=None, description=None):
+def _reversal(db, project, contract, amount, reversal_of_id=None, description=None):
     entry = RetentionEntry(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         entry_type=RetentionEntryType.REVERSAL,
@@ -82,10 +72,10 @@ def _reversal(db, org, project, contract, amount, reversal_of_id=None, descripti
 
 @pytest.mark.asyncio
 async def test_balance_sum_of_holds(db):
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
 
-    _hold(db, org, project, contract, "1000", "hold 1")
-    _hold(db, org, project, contract, "2000", "hold 2")
+    _hold(db, project, contract, "1000", "hold 1")
+    _hold(db, project, contract, "2000", "hold 2")
     await db.commit()
 
     balance = await get_balance(contract.id, db)
@@ -94,10 +84,10 @@ async def test_balance_sum_of_holds(db):
 
 @pytest.mark.asyncio
 async def test_balance_decreases_on_release(db):
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
 
-    _hold(db, org, project, contract, "3000")
-    _release(db, org, project, contract, "1000")
+    _hold(db, project, contract, "3000")
+    _release(db, project, contract, "1000")
     await db.commit()
 
     balance = await get_balance(contract.id, db)
@@ -106,12 +96,12 @@ async def test_balance_decreases_on_release(db):
 
 @pytest.mark.asyncio
 async def test_balance_subtracts_reversal(db):
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
 
-    h = _hold(db, org, project, contract, "3000")
+    h = _hold(db, project, contract, "3000")
     await db.flush()
-    _release(db, org, project, contract, "1000")
-    _reversal(db, org, project, contract, "500", reversal_of_id=h.id)
+    _release(db, project, contract, "1000")
+    _reversal(db, project, contract, "500", reversal_of_id=h.id)
     await db.commit()
 
     # balance = SUM(HOLD) - SUM(RELEASE) - SUM(REVERSAL) = 3000 - 1000 - 500 = 1500
@@ -121,17 +111,17 @@ async def test_balance_subtracts_reversal(db):
 
 @pytest.mark.asyncio
 async def test_empty_balance_is_zero(db):
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
     balance = await get_balance(contract.id, db)
     assert balance == Decimal("0")
 
 
 @pytest.mark.asyncio
 async def test_releasing_more_than_held_yields_negative_balance(db):
-    org, project, contract = await _setup_contract(db)
+    project, contract = await _setup_contract(db)
 
-    _hold(db, org, project, contract, "1000")
-    _release(db, org, project, contract, "1500")
+    _hold(db, project, contract, "1000")
+    _release(db, project, contract, "1500")
     await db.commit()
 
     balance = await get_balance(contract.id, db)

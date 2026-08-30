@@ -251,7 +251,7 @@ export interface MasterBudgetRow {
   price_variance: string | null;
   expected_payment_date: string | null;
   actual_payment_date: string | null;
-  exception_status: 'none' | 'overclaim' | 'unmapped';
+  exception_status: 'none' | 'overclaim' | 'overdue' | 'unmapped';
 }
 
 export interface MasterBudgetResponse {

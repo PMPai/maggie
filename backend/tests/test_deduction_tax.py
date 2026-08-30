@@ -12,7 +12,6 @@ import pytest
 from app.models.contract import (
     Contract, ContractVersion, ContractVersionType, ContractVersionStatus,
 )
-from app.models.identity import Organization
 from app.models.project import Project
 from app.models.billing import PaymentApplication, ApplicationStatus
 from app.models.deduction import (
@@ -22,12 +21,7 @@ from app.services.deduction_service import calc_deduction_tax, get_total_deducti
 
 
 async def _setup_application(db):
-    org = Organization(code=f"org-{uuid.uuid4().hex[:8]}", name="Test Org")
-    db.add(org)
-    await db.flush()
-
     project = Project(
-        organization_id=org.id,
         internal_project_code=f"P-{uuid.uuid4().hex[:8]}",
         project_name="Test Project",
     )
@@ -35,7 +29,6 @@ async def _setup_application(db):
     await db.flush()
 
     contract = Contract(
-        organization_id=org.id,
         project_id=project.id,
         external_contract_no=f"C-{uuid.uuid4().hex[:8]}",
         contract_name="Test Contract",
@@ -44,7 +37,6 @@ async def _setup_application(db):
     await db.flush()
 
     version = ContractVersion(
-        organization_id=org.id,
         contract_id=contract.id,
         version_no=1,
         version_type=ContractVersionType.SIGNED_CONTRACT,
@@ -56,7 +48,6 @@ async def _setup_application(db):
     await db.flush()
 
     application = PaymentApplication(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         contract_version_id=version.id,
@@ -69,7 +60,7 @@ async def _setup_application(db):
     )
     db.add(application)
     await db.commit()
-    return org, project, contract, version, application
+    return project, contract, version, application
 
 
 class TestCalcDeductionTax:
@@ -100,10 +91,9 @@ class TestCalcDeductionTax:
 
 @pytest.mark.asyncio
 async def test_get_total_deduction_amount_sums_approved(db):
-    org, project, contract, version, application = await _setup_application(db)
+    project, contract, version, application = await _setup_application(db)
 
     d1 = Deduction(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         payment_application_id=application.id,
@@ -114,7 +104,6 @@ async def test_get_total_deduction_amount_sums_approved(db):
         status=DeductionStatus.APPROVED,
     )
     d2 = Deduction(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         payment_application_id=application.id,
@@ -134,10 +123,9 @@ async def test_get_total_deduction_amount_sums_approved(db):
 
 @pytest.mark.asyncio
 async def test_get_total_deduction_amount_ignores_non_approved(db):
-    org, project, contract, version, application = await _setup_application(db)
+    project, contract, version, application = await _setup_application(db)
 
     approved = Deduction(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         payment_application_id=application.id,
@@ -148,7 +136,6 @@ async def test_get_total_deduction_amount_ignores_non_approved(db):
         status=DeductionStatus.APPROVED,
     )
     draft = Deduction(
-        organization_id=org.id,
         project_id=project.id,
         contract_id=contract.id,
         payment_application_id=application.id,
@@ -168,6 +155,6 @@ async def test_get_total_deduction_amount_ignores_non_approved(db):
 
 @pytest.mark.asyncio
 async def test_get_total_deduction_amount_empty_is_zero(db):
-    org, project, contract, version, application = await _setup_application(db)
+    project, contract, version, application = await _setup_application(db)
     total = await get_total_deduction_amount(application.id, db)
     assert total == Decimal("0")

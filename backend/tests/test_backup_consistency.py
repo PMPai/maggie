@@ -27,12 +27,6 @@ async def test_backup_check_passes_on_clean_db(db):
 async def test_backup_check_detects_bad_invoice(db):
     """Should detect invoice with amount_ex_tax + tax_amount != amount_inc_tax."""
     from scripts.backup_check import check_invoice_amounts
-    # Insert a bad invoice directly
-    await db.execute(text("""
-        INSERT INTO organizations (id, code, name, default_currency, default_timezone, status, created_at, updated_at)
-        VALUES (gen_random_uuid(), 'TEST_ORG', 'Test', 'TWD', 'Asia/Taipei', 'ACTIVE', now(), now())
-        ON CONFLICT DO NOTHING
-    """))
     # The check function should work (even if no bad invoices exist, it should pass)
     passed, msg = await check_invoice_amounts(db)
     assert passed, f"Expected pass on clean state: {msg}"

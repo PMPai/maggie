@@ -17,9 +17,9 @@ from app.models.project import Project
 
 
 @pytest.mark.asyncio
-async def test_dashboard_summary_unauthenticated(client, db):
+async def test_dashboard_summary_no_auth_required(client, db):
     r = await client.get("/api/dashboard/summary")
-    assert r.status_code == 401
+    assert r.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -46,10 +46,7 @@ async def test_dashboard_summary_shape_for_empty_user(client, db, auth_user):
 async def test_dashboard_summary_populated_path(client, db, auth_user):
     """Seeded data surfaces as non-zero indicators on the dashboard summary."""
     user_id = uuid.UUID(auth_user["id"])
-    org_id = uuid.UUID(auth_user["org_id"])
-
     project = Project(
-        organization_id=org_id,
         internal_project_code="PROJ-001",
         project_name="Populated Path Project",
         created_by=user_id,
@@ -59,7 +56,6 @@ async def test_dashboard_summary_populated_path(client, db, auth_user):
     await db.flush()
 
     contract = Contract(
-        organization_id=org_id,
         project_id=project.id,
         external_contract_no="EXT-001",
         contract_name="Main Contract",
@@ -75,7 +71,6 @@ async def test_dashboard_summary_populated_path(client, db, auth_user):
     await db.flush()
 
     version = ContractVersion(
-        organization_id=org_id,
         contract_id=contract.id,
         version_no=1,
         version_type=ContractVersionType.SIGNED_CONTRACT,
@@ -91,7 +86,6 @@ async def test_dashboard_summary_populated_path(client, db, auth_user):
     contract.active_version_id = version.id
 
     app = PaymentApplication(
-        organization_id=org_id,
         project_id=project.id,
         contract_id=contract.id,
         contract_version_id=version.id,
@@ -111,7 +105,6 @@ async def test_dashboard_summary_populated_path(client, db, auth_user):
     await db.flush()
 
     invoice = Invoice(
-        organization_id=org_id,
         project_id=project.id,
         contract_id=contract.id,
         invoice_no="INV-001",
@@ -128,7 +121,6 @@ async def test_dashboard_summary_populated_path(client, db, auth_user):
     await db.flush()
 
     collection = Collection(
-        organization_id=org_id,
         project_id=project.id,
         contract_id=contract.id,
         receipt_no="RCT-001",
@@ -143,7 +135,6 @@ async def test_dashboard_summary_populated_path(client, db, auth_user):
     await db.flush()
 
     retention = RetentionEntry(
-        organization_id=org_id,
         project_id=project.id,
         contract_id=contract.id,
         payment_application_id=app.id,
