@@ -32,9 +32,6 @@ class Project(Base, TimestampMixin, AuditMixin, SoftDeleteMixin):
     internal_project_code: Mapped[str] = mapped_column(String(32), nullable=False)
     project_name: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    project_manager_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     planned_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     actual_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
