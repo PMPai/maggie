@@ -49,12 +49,11 @@ Docker Compose 开发环境将前端与 API 分别公开到主机端口：
 
 | 地址 | 用途 |
 |---|---|
-| `http://localhost:3000` | Maggie 网页系统的登录与业务页面；应作为日常使用入口。 |
-| `http://localhost:8000` | FastAPI 后端 API，不提供业务网页。 |
-| `http://localhost:8000/api/docs` | FastAPI Swagger API 文档。 |
-| `http://localhost:8000/health` | 仅健康检查，返回 JSON 状态而非 HTML 页面。 |
+| `http://localhost:8081` | Maggie 网页系统与 API 代理（`/api/*`）；应作为日常使用入口。 |
+| `http://localhost:8081/api/docs` | FastAPI Swagger API 文档（经前端代理）。 |
+| `http://localhost:8081/health` | 仅健康检查，返回 JSON 状态而非 HTML 页面。 |
 
-浏览器对 `/api/*` 的请求由 Next.js 开发服务器代理至 `api:8000`；前端使用 cookie 凭证访问 API。
+浏览器对 `/api/*` 的请求由 Next.js 开发服务器代理至 `api:8000`（Docker 内部网络）；前端使用 8081 端口对外服务。
 
 ---
 
@@ -389,7 +388,7 @@ User ──< user_groups >── Group ──< group_roles >── Role
   - `/projects/[id]/mapping`（映射审批）
   - `/reports`（报表中心 — 8 种 DB 视图报表 + 3 规划中，侧边栏选择 + 增强渲染 + 分页，Phase B）
   - `/audit`（审计日志 — 追加只读，最近 100 条操作记录）
-- **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/api/*`。
+- **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/api/*`（Docker 内部网络）。对外端口为 8081。
 - **认证**：cookie-based，`credentials: 'include'` 自动携带。
 - **原则**：前端不做任何业务计算，所有计算结果来自 API。
 

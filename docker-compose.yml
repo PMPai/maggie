@@ -35,8 +35,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    # API not exposed to host — accessed via frontend proxy at :8081/api/*
     volumes:
       - archive:/data/archive
       - ./backend:/app
@@ -69,7 +68,7 @@ services:
     depends_on:
       - api
     ports:
-      - "3000:3000"
+      - "8081:3000"
     volumes:
       - ./frontend:/app
     command: sh -c "npm install --no-audit --no-fund && npm run dev"

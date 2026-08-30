@@ -83,16 +83,15 @@ docker compose up -d --build frontend
 
 首次 API 构建约 2-3 分钟。前端使用 `node:20-alpine` + `npm run dev` 模式，首次启动约 30 秒（含 `npm install`）。
 
-> **访问说明**：`http://localhost:3000` 是 Maggie 的网页系统；`http://localhost:8000/health` 仅为后端健康检查，会显示 JSON。Worker 已在 `docker-compose.yml` 中启用。
+> **访问说明**：`http://localhost:8081` 是 Maggie 的网页系统与 API 代理；`http://localhost:8081/health` 为后端健康检查（经前端代理）。Worker 已在 `docker-compose.yml` 中启用。
 
 启动后：
 
 | 服务 | 地址 | 说明 |
 |---|---|---|
-| 前端 | http://localhost:3000 | 登录页面（侧边栏导航 + Data-Dense Dashboard 风格） |
-| API | http://localhost:8000 | FastAPI |
-| API 文档 | http://localhost:8000/api/docs | Swagger UI |
-| 健康检查 | http://localhost:8000/health | `{"status":"ok"}` |
+| 前端 + API | http://localhost:8081 | 网页系统（侧边栏导航 + Data-Dense Dashboard 风格） |
+| API 文档 | http://localhost:8081/api/docs | Swagger UI（经前端代理） |
+| 健康检查 | http://localhost:8081/health | `{"status":"ok"}`（经前端代理） |
 
 ### 4.3 初始化数据库
 
@@ -102,7 +101,7 @@ docker compose exec -T -e PYTHONPATH=/app api python scripts/init_admin.py
 docker compose exec -T -e PYTHONPATH=/app api python scripts/seed.py
 ```
 
-完成后打开 http://localhost:3000，使用 `admin@maggie.local / admin123` 登录。
+完成后打开 http://localhost:8081（单一本地用户，无需登录）。
 
 ### 4.4 后台启动（开发模式）
 

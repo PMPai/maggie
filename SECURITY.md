@@ -293,14 +293,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # 生产环境限定实际域名
+    allow_origins=["http://localhost:8081"],  # 生产环境限定实际域名
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 ```
 
-- 开发环境允许 `localhost:3000`。
+- 开发环境允许 `localhost:8081`。
 - **生产环境必须限定为实际域名**。
 
 ---
