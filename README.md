@@ -1,8 +1,8 @@
-# 工程合同及请款管理系统 (Maggie)
+# 工程计价单及请款管理系统 (Maggie)
 
-Engineering Contract & Payment Application Management System — a multi-project, multi-role billing platform for construction firms. Handles contracts with versioned line items, progress payment applications, retention ledgers, variations, deductions, approvals, idempotent posting, invoice/collection tracking, standard item matching, optional LLM semantic matching, and PDF/Excel document generation.
+Engineering Pricing Sheet & Payment Application Management System — a single-user, local billing platform for construction firms. Handles 计价单 (pricing sheets) → contract approval, progress payment applications, retention ledgers, variations, deductions, idempotent posting, collection/invoice tracking with weekly receivables plan, Master Budget with manual cost/margin, MCP server for AI Agent CRUD, and PDF/Excel document generation.
 
-> **项目状态**：Phase 1 + 2 + 3 + A + B 全部完成 · 17 个数据库迁移 · 94 项测试通过（含 PDF 生成集成测试） · Celery Worker + Tesseract OCR + Playwright PDF · 6 个核心前端页面 + 7 共享组件 · [GitHub 仓库](https://github.com/PMPai/maggie)
+> **项目状态**：Revision 1 — 计价单流程 + 财务收款流程 + MCP API · 24 个数据库迁移 · 单一本地用户（无认证） · MCP Server (stdio/SSE) · [GitHub 仓库](https://github.com/PMPai/maggie)
 
 ---
 

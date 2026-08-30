@@ -2,7 +2,7 @@
 
 ## 概述
 
-Maggie 采用前后端分离 + 异步任务的架构，全部容器化运行于 Docker Compose。前端为 Next.js 静态导出 SPA，后端为 FastAPI REST API，数据持久化于 PostgreSQL 16（含 pgvector），异步任务由 Celery + Redis 驱动。
+Maggie 采用前后端分离 + 异步任务的架构，全部容器化运行于 Docker Compose。前端为 Next.js App Router，后端为 FastAPI REST API + MCP Server（供 AI Agent），数据持久化于 PostgreSQL 16，异步任务由 Celery + Redis 驱动。系统为单一本地用户，无认证/权限。
 
 ---
 
@@ -11,39 +11,36 @@ Maggie 采用前后端分离 + 异步任务的架构，全部容器化运行于 
 ```mermaid
 flowchart LR
     U["网页用户"] --> W["Web前端"]
-    W --> API["后端API与权限控制"]
-    API --> PM["项目与合同管理"]
-    API --> PE["请款计算引擎"]
-    API --> WF["审批与异常工作流"]
-    API --> FM["发票与收款管理"]
-    API --> DM["文件管理服务"]
-    API --> MAP["标准项目匹配服务"]
-    MAP --> RULE["别名与规则匹配"]
-    MAP --> LLM["可选LLM语义建议"]
-    MAP --> HR["人工转换审批"]
+    A["AI Agent"] --> MCP["MCP Server"]
+    W --> API["FastAPI REST API"]
+    MCP --> SVC["服务层"]
+    API --> SVC
+    SVC --> PM["项目与计价单管理"]
+    SVC --> PE["请款计算引擎"]
+    SVC --> WF["审批工作流"]
+    SVC --> FM["发票与收款管理"]
+    SVC --> DM["文件管理服务"]
     PM --> DB[("PostgreSQL")]
     PE --> DB
     WF --> DB
     FM --> DB
-    MAP --> DB
     DM --> DB
     DM --> FS["原件及生成文件夹"]
     PE --> GEN["请款单生成器"]
-    GEN --> TMP["客户模板库"]
     GEN --> FS
 ```
 
 ## 请求流向
 
 ```
-Browser ── HTTPS ──> nginx (frontend static + /api proxy)
+Browser ── HTTP ──> Next.js dev server (/api proxy)
                          │
-                         ├── Next.js static export
-                         └── FastAPI (api) ──> PostgreSQL (data + pgvector)
+                         └── FastAPI (api) ──> PostgreSQL
                                   │          └── Redis (broker + cache)
-                                  └── Celery worker ──> Playwright (PDF)
-                                                       └── LLM client (OpenAI-compat or Stub)
+                                  └── Celery worker ──> Playwright (PDF) / OCR
                                   └── File service ──> /data/archive (volume)
+
+AI Agent ── MCP (stdio/SSE) ──> MCP Server ──> Service Layer ──> PostgreSQL
 ```
 
 ### 本地开发访问
