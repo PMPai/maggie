@@ -15,6 +15,7 @@ interface BudgetRow {
   unit: string;
   quantity: string;
   unit_price: string;
+  unit_cost: string;
   expected_payment_date: string;
 }
 
@@ -30,20 +31,17 @@ export default function ProjectSetupPage() {
   const [contractId, setContractId] = useState('');
   const [versionId, setVersionId] = useState('');
 
-  // Step 1: contract form
-  const [contractForm, setContractForm] = useState({
+  // Step 1: pricing sheet form
+  const [sheetForm, setSheetForm] = useState({
+    contract_name: '计价单',
     external_contract_no: '',
-    contract_name: '',
     tax_mode: 'EXCLUSIVE',
     tax_rate: '0.05',
-    amount_ex_tax: '',
-    tax_amount: '',
-    amount_inc_tax: '',
   });
 
-  // Step 2: budget rows
+  // Step 2: budget rows (计价单逐项)
   const [rows, setRows] = useState<BudgetRow[]>([
-    { line_no: '1', description: '', unit: '', quantity: '', unit_price: '', expected_payment_date: '' },
+    { line_no: '1', description: '', unit: '', quantity: '', unit_price: '', unit_cost: '', expected_payment_date: '' },
   ]);
 
   useEffect(() => {
@@ -54,56 +52,45 @@ export default function ProjectSetupPage() {
   if (loading) return <PageLoader />;
   if (!project) return <div className="p-8">加载中...</div>;
 
-  const createContract = async () => {
-    if (!contractForm.external_contract_no || !contractForm.contract_name || !contractForm.amount_inc_tax) {
-      setError('合同编号、名称、含税金额为必填');
-      return;
-    }
-    const ex = parseFloat(contractForm.amount_ex_tax || '0');
-    const tax = parseFloat(contractForm.tax_amount || '0');
-    const inc = parseFloat(contractForm.amount_inc_tax || '0');
-    if (Math.abs(ex + tax - inc) > 0.01) {
-      setError('未税金额 + 税额 ≠ 含税金额');
+  const createPricingSheet = async () => {
+    if (!sheetForm.contract_name) {
+      setError('计价单名称为必填');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      const c = await api.post<any>('/contracts', {
-        project_id: projectId,
-        external_contract_no: contractForm.external_contract_no,
-        contract_name: contractForm.contract_name,
-        tax_mode: contractForm.tax_mode,
-        tax_rate: contractForm.tax_rate,
-        original_amount_ex_tax: contractForm.amount_ex_tax,
-        original_tax_amount: contractForm.tax_amount,
-        original_amount_inc_tax: contractForm.amount_inc_tax,
-      });
-      setContractId(c.id);
-      // Create DRAFT version
-      const v = await api.post<any>(`/contracts/${c.id}/versions`, {
-        version_type: 'QUOTATION',
-        amount_ex_tax: contractForm.amount_ex_tax,
-        tax_amount: contractForm.tax_amount,
-        amount_inc_tax: contractForm.amount_inc_tax,
-      });
-      setVersionId(v.id);
+      const ps = await api.post<{ contract_id: string; version_id: string }>(
+        `/contracts/projects/${projectId}/pricing-sheets`,
+        {
+          contract_name: sheetForm.contract_name,
+          external_contract_no: sheetForm.external_contract_no || undefined,
+          tax_mode: sheetForm.tax_mode,
+          tax_rate: sheetForm.tax_rate,
+        }
+      );
+      setContractId(ps.contract_id);
+      setVersionId(ps.version_id);
       setStep(2);
     } catch (e: any) {
-      setError(e?.message || '创建合同失败');
+      setError(e?.message || '创建计价单失败');
     } finally {
       setBusy(false);
     }
   };
 
   const addBudgetRow = () => {
-    setRows([...rows, { line_no: String(rows.length + 1), description: '', unit: '', quantity: '', unit_price: '', expected_payment_date: '' }]);
+    setRows([...rows, { line_no: String(rows.length + 1), description: '', unit: '', quantity: '', unit_price: '', unit_cost: '', expected_payment_date: '' }]);
+  };
+
+  const removeBudgetRow = (i: number) => {
+    setRows(rows.filter((_, idx) => idx !== i));
   };
 
   const saveBudgetRows = async () => {
     const validRows = rows.filter(r => r.description && r.quantity);
     if (validRows.length === 0) {
-      setError('至少需要一行有效的预算项目（描述+数量）');
+      setError('至少需要一行有效的计价项目（描述+数量）');
       return;
     }
     setBusy(true);
@@ -112,12 +99,14 @@ export default function ProjectSetupPage() {
       for (const r of validRows) {
         const qty = parseFloat(r.quantity) || 0;
         const price = parseFloat(r.unit_price) || 0;
+        const cost = parseFloat(r.unit_cost) || 0;
         await api.post(`/contracts/contract-versions/${versionId}/items`, {
           line_no: r.line_no,
           source_description: r.description,
           unit: r.unit || null,
           contract_quantity: String(qty),
           unit_price: String(price),
+          unit_cost: cost > 0 ? String(cost) : null,
           line_amount: String(qty * price),
           calculation_method: 'QUANTITY',
           expected_payment_date: r.expected_payment_date || null,
@@ -125,7 +114,7 @@ export default function ProjectSetupPage() {
       }
       setStep(3);
     } catch (e: any) {
-      setError(e?.message || '保存预算项目失败');
+      setError(e?.message || '保存计价项目失败');
     } finally {
       setBusy(false);
     }
@@ -135,10 +124,6 @@ export default function ProjectSetupPage() {
     setBusy(true);
     setError('');
     try {
-      // Directly approve the DRAFT version — the approve endpoint accepts
-      // both DRAFT and UNDER_REVIEW statuses, so the intermediate PATCH to
-      // UNDER_REVIEW (which requires CONTRACT_ADMIN role) is unnecessary and
-      // would block project managers from completing the setup flow.
       await api.post(`/contracts/${contractId}/versions/${versionId}/approve`);
       router.push(`/projects/${projectId}/budget`);
     } catch (e: any) {
@@ -150,15 +135,15 @@ export default function ProjectSetupPage() {
 
   return (
     <main className="p-8 max-w-5xl mx-auto">
-      <PageHeader title="项目预算设置" subtitle={`${project.internal_project_code} · ${project.project_name}`} />
+      <PageHeader title="计价单设置" subtitle={`${project.internal_project_code} · ${project.project_name}`} />
       {error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-6">
         {[
-          { n: 1, label: '新建合同' },
-          { n: 2, label: '预算项目' },
-          { n: 3, label: '提交批准' },
+          { n: 1, label: '新建计价单' },
+          { n: 2, label: '计价项目' },
+          { n: 3, label: '审核通过' },
         ].map((s, i) => (
           <div key={s.n} className="flex items-center gap-2">
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
@@ -176,27 +161,27 @@ export default function ProjectSetupPage() {
         ))}
       </div>
 
-      {/* Step 1: Contract */}
+      {/* Step 1: Pricing sheet */}
       {step === 1 && (
         <Card>
-          <CardHeader title="新建合同" />
+          <CardHeader title="新建计价单" />
           <div className="card-body grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-slate-500 mb-1">合同编号 *</label>
-              <input type="text" value={contractForm.external_contract_no}
-                onChange={e => setContractForm({...contractForm, external_contract_no: e.target.value})}
-                className="input-field text-sm" placeholder="例如 CQ880A-11501" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">合同名称 *</label>
-              <input type="text" value={contractForm.contract_name}
-                onChange={e => setContractForm({...contractForm, contract_name: e.target.value})}
+              <label className="block text-xs text-slate-500 mb-1">计价单名称 *</label>
+              <input type="text" value={sheetForm.contract_name}
+                onChange={e => setSheetForm({...sheetForm, contract_name: e.target.value})}
                 className="input-field text-sm" placeholder="例如 污水工作井地改工程" />
             </div>
             <div>
+              <label className="block text-xs text-slate-500 mb-1">编号（选填）</label>
+              <input type="text" value={sheetForm.external_contract_no}
+                onChange={e => setSheetForm({...sheetForm, external_contract_no: e.target.value})}
+                className="input-field text-sm" placeholder="自动生成或手动填写" />
+            </div>
+            <div>
               <label className="block text-xs text-slate-500 mb-1">税务模式</label>
-              <select value={contractForm.tax_mode}
-                onChange={e => setContractForm({...contractForm, tax_mode: e.target.value})}
+              <select value={sheetForm.tax_mode}
+                onChange={e => setSheetForm({...sheetForm, tax_mode: e.target.value})}
                 className="input-field text-sm">
                 <option value="EXCLUSIVE">未税</option>
                 <option value="INCLUSIVE">含税</option>
@@ -205,62 +190,47 @@ export default function ProjectSetupPage() {
             </div>
             <div>
               <label className="block text-xs text-slate-500 mb-1">税率</label>
-              <input type="text" value={contractForm.tax_rate}
-                onChange={e => setContractForm({...contractForm, tax_rate: e.target.value})}
-                className="input-field text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">未税金额</label>
-              <input type="number" value={contractForm.amount_ex_tax}
-                onChange={e => setContractForm({...contractForm, amount_ex_tax: e.target.value})}
-                className="input-field text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">税额</label>
-              <input type="number" value={contractForm.tax_amount}
-                onChange={e => setContractForm({...contractForm, tax_amount: e.target.value})}
-                className="input-field text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">含税金额 *</label>
-              <input type="number" value={contractForm.amount_inc_tax}
-                onChange={e => setContractForm({...contractForm, amount_inc_tax: e.target.value})}
+              <input type="text" value={sheetForm.tax_rate}
+                onChange={e => setSheetForm({...sheetForm, tax_rate: e.target.value})}
                 className="input-field text-sm" />
             </div>
           </div>
           <div className="mt-4 flex justify-end">
-            <button onClick={createContract} disabled={busy} className="btn-primary">
-              {busy ? '创建中...' : '下一步：添加预算项目'}
+            <button onClick={createPricingSheet} disabled={busy} className="btn-primary">
+              {busy ? '创建中...' : '下一步：添加计价项目'}
             </button>
           </div>
         </Card>
       )}
 
-      {/* Step 2: Budget rows */}
+      {/* Step 2: Budget rows (计价单逐项) */}
       {step === 2 && (
         <Card>
-          <CardHeader title="预算项目明细" actions={
+          <CardHeader title="计价单逐项编辑" actions={
             <button onClick={addBudgetRow} className="btn-secondary text-sm">+ 添加行</button>
           } />
           <div className="overflow-x-auto">
             <table className="data-table text-xs">
               <thead>
                 <tr>
-                  <th>项次</th><th>描述</th><th>单位</th>
+                  <th>项次</th><th>名称</th><th>单位</th>
                   <th className="text-right">数量</th><th className="text-right">单价</th>
-                  <th className="text-right">金额</th><th>预期支付</th>
+                  <th className="text-right">单位成本</th>
+                  <th className="text-right">金额</th><th>付款时间</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i}>
                     <td><input value={r.line_no} onChange={e => { const c=[...rows]; c[i]={...r, line_no: e.target.value}; setRows(c); }} className="input-field text-xs w-12" /></td>
-                    <td><input value={r.description} onChange={e => { const c=[...rows]; c[i]={...r, description: e.target.value}; setRows(c); }} className="input-field text-xs w-full" placeholder="项目描述" /></td>
+                    <td><input value={r.description} onChange={e => { const c=[...rows]; c[i]={...r, description: e.target.value}; setRows(c); }} className="input-field text-xs w-full" placeholder="项目名称" /></td>
                     <td><input value={r.unit} onChange={e => { const c=[...rows]; c[i]={...r, unit: e.target.value}; setRows(c); }} className="input-field text-xs w-16" /></td>
                     <td><input type="number" value={r.quantity} onChange={e => { const c=[...rows]; c[i]={...r, quantity: e.target.value}; setRows(c); }} className="input-field text-xs w-20" /></td>
                     <td><input type="number" value={r.unit_price} onChange={e => { const c=[...rows]; c[i]={...r, unit_price: e.target.value}; setRows(c); }} className="input-field text-xs w-20" /></td>
+                    <td><input type="number" value={r.unit_cost} onChange={e => { const c=[...rows]; c[i]={...r, unit_cost: e.target.value}; setRows(c); }} className="input-field text-xs w-20" /></td>
                     <td className="num">{formatMoney((parseFloat(r.quantity)||0) * (parseFloat(r.unit_price)||0))}</td>
                     <td><input type="date" value={r.expected_payment_date} onChange={e => { const c=[...rows]; c[i]={...r, expected_payment_date: e.target.value}; setRows(c); }} className="input-field text-xs w-32" /></td>
+                    <td><button onClick={() => removeBudgetRow(i)} className="text-red-400 hover:text-red-600 text-xs">删除</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -268,7 +238,7 @@ export default function ProjectSetupPage() {
           </div>
           <div className="mt-4 flex justify-end">
             <button onClick={saveBudgetRows} disabled={busy} className="btn-primary">
-              {busy ? '保存中...' : '下一步：提交批准'}
+              {busy ? '保存中...' : '下一步：审核通过'}
             </button>
           </div>
         </Card>
@@ -277,13 +247,14 @@ export default function ProjectSetupPage() {
       {/* Step 3: Submit + approve */}
       {step === 3 && (
         <Card>
-          <CardHeader title="提交审核与批准" />
+          <CardHeader title="审核通过 → 转为合同" />
           <div className="card-body">
             <p className="text-sm text-slate-600 mb-4">
-              合同与预算项目已保存。点击下方按钮提交审核并批准合同版本。批准后，Master Budget 页面将显示完整预算数据。
+              计价单与逐项已保存。点击下方按钮审核通过，计价单将转为正式合同（SIGNED_CONTRACT），
+              系统将自动依付款时间生成应收款计划（PLANNED 收款单）。
             </p>
             <button onClick={submitAndApprove} disabled={busy} className="btn-primary">
-              {busy ? '处理中...' : '提交审核并批准 → 跳转 Master Budget'}
+              {busy ? '处理中...' : '审核通过 → 跳转 Master Budget'}
             </button>
           </div>
         </Card>
