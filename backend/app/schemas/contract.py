@@ -80,6 +80,7 @@ class ContractItemPatch(BaseModel):
     unit: str | None = None
     contract_quantity: Decimal | None = None
     unit_price: Decimal | None = None
+    unit_cost: Decimal | None = None
     line_amount: Decimal | None = None
     calculation_method: str | None = None
     tax_category: str | None = None
@@ -97,6 +98,7 @@ class ContractItemCreate(BaseModel):
     unit: str | None = None
     contract_quantity: Decimal = Decimal("0")
     unit_price: Decimal = Decimal("0")
+    unit_cost: Decimal | None = None
     line_amount: Decimal = Decimal("0")
     calculation_method: str = "QUANTITY"
     tax_category: str = "STANDARD"
@@ -104,6 +106,7 @@ class ContractItemCreate(BaseModel):
     is_heading: bool = False
     is_billable: bool = True
     sort_order: int = 0
+    expected_payment_date: date | None = None
 
 
 class ContractItemResponse(BaseModel):
@@ -116,12 +119,14 @@ class ContractItemResponse(BaseModel):
     unit: str | None
     contract_quantity: Decimal
     unit_price: Decimal
+    unit_cost: Decimal | None
     line_amount: Decimal
     calculation_method: str
     is_heading: bool
     is_billable: bool
     retention_applicable: bool
     sort_order: int
+    expected_payment_date: date | None = None
 
 
 class PaymentRuleCreate(BaseModel):
@@ -144,3 +149,20 @@ class PaymentRuleResponse(BaseModel):
     rate: Decimal
     calculation_base: str
     is_active: bool
+
+
+class PricingSheetCreate(BaseModel):
+    contract_name: str = "计价单"
+    external_contract_no: str | None = None
+    currency: str = "TWD"
+    tax_mode: str = "EXCLUSIVE"
+    tax_rate: Decimal = Decimal("0.05")
+
+
+class PricingSheetResponse(BaseModel):
+    contract_id: str
+    version_id: str
+    project_id: str
+    contract_name: str
+    status: str
+    version_type: str
