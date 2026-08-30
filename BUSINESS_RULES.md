@@ -224,29 +224,15 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 9. 数据隔离 (Data Isolation)
+## 9. 数据隔离 — **已移除**
 
-- **组织级**：所有业务表含 `organization_id`，服务层强制过滤。
-- **项目级**：用户仅能访问所属 `project_members` 项目；拥有管理员类别角色的用户例外。新建项目时，创建者自动加入该项目并取得 `PROJECT_MANAGER` 项目成员身份。
-- **URL 不可绕过**：权限检查在服务层执行，非前端路由。
-- 25-032 数据永不进入 24-023（测试 #18 验证）。
+组织级隔离（`organization_id`）与项目成员检查已在 Revision 1 中移除。系统为单一本地用户，所有数据可访问。
 
 ---
 
-## 10. 群组与用户授权 (Group-based Access Control)
+## 10. 群组与用户授权 — **已移除**
 
-### 核心原则：群组授予角色，角色决定权限
-
-- 群组、群组角色与用户群组成员关系分别存放于 `groups`、`group_roles`、`user_groups`；同一组织内群组名称唯一。
-- 只有 `ACTIVE` 群组的角色会生效。用户拥有一个或多个有效群组时，系统汇总这些群组的角色；仅在没有有效群组角色时，才回退读取历史 `user_roles`。
-- 角色归入五类：`ADMIN`（系统/合同管理员）、`FINANCE`（财务与造价）、`LEADER`（项目负责人/项目人员）、`AUDITOR`、`VIEWER`。类别用于导航展示和类别级授权，细粒度业务授权仍由角色判断。
-- 管理员类别可管理用户与群组，并可绕过项目成员限制；其余用户仍须符合具体 API 的角色及项目成员要求。
-
-### 默认群组与保护规则
-
-- 迁移会为每个有效组织建立管理员、财务、项目组长、项目人员、审计及只读默认群组，并将既有直接角色映射至对应群组成员关系。
-- 默认群组不可删除或停用。自助移除管理员成员时，系统不得让操作者离开最后一个有效管理员群组。
-- 用户、群组、群组角色与群组成员的管理 API 均要求管理员授权；前端隐藏菜单仅为操作便利，不能取代后端授权检查。
+RBAC、群组、角色、项目成员管理已在 Revision 1 中完全移除。单一本地用户，无认证。
 
 ---
 
@@ -277,15 +263,26 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 13. 发票与收款差异 (Invoice/Collection Variance) — Phase 2
+## 13. 发票与收款流程 (Invoice & Collection Flow) — Revision 1
 
-### 核心原则：差异显式记录，不自动核销
+### 核心原则：状态流驱动，差异显式记录
 
+**收款单状态流：** `PLANNED → CONFIRMED → RECEIVED → (CANCELLED)`
+- PLANNED：计价单审核通过时自动生成（依逐项 `expected_payment_date`），或手动建立
+- CONFIRMED：财务审核确认
+- RECEIVED：款项实际到账
+
+**发票状态流：** `PLANNED → ISSUED → SENT → (PAID) → (VOID)`
+- PLANNED：收款确认后预排
+- ISSUED：真实发票号开立
+- SENT：发票已交付客户
+- PAID：收款分配覆盖含税金额时自动设定
+
+### 关联关系
 - 发票（`invoices`）关联已过账请款（`invoice_application_links`）。
 - 收款（`collections`）分配到发票（`collection_allocations`）。
 - `get_invoice_outstanding(invoice_id)` = 含税金额 - 已分配收款。
-- **差异不自动核销**：90/30 差异独立记录，需人工创建 `financial_adjustments` 核销。
-- 邮件建议发票（source=EMAIL_SUGGESTED）标记为 DRAFT，不自动纳入已开票金额。
+- **差异不自动核销**：差异独立记录，需人工创建 `financial_adjustments` 核销。
 - 由测试 #12（发票/收款差异）验证。
 
 ### 25-032 示例
@@ -298,24 +295,9 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 
 ---
 
-## 14. 标准项目匹配 (Standard Item Matching) — Phase 2
+## 14. 标准项目匹配 — **已移除**
 
-### 匹配管道
-
-```
-标准化 → 精确别名 → 规则匹配 → 全文检索 → 向量检索（可选）→ LLM 排序（可选）
-```
-
-### 自动应用条件
-
-仅当 `match_method=EXACT_ALIAS` **且** `unit_compatibility=SAME` 时可自动应用，其余均需人工审核。
-
-### LLM 限制
-
-- LLM 仅从系统提供的候选中排序并解释。
-- **不能**创建标准项目 ID、计算成本、决定转换、自动审批或写入数据库。
-- LLM 失败 → 人工审核回退。
-- 由测试 #17（LLM 输出 schema）验证。
+标准项目匹配管道、LLM 语义比对、别名/规则/全文/向量检索已在 Revision 1 中完全移除。Master Budget 改用 `contract_items.unit_cost` 手动成本计算毛利。
 
 ---
 
@@ -331,8 +313,8 @@ DRAFT → VALIDATING → NEEDS_CHANGES → SUBMITTED → PROJECT_APPROVED → FI
 | `v_uninvoiced_approved_amounts` | 已过账未开票金额 |
 | `v_invoice_outstanding` | 发票未清金额 |
 | `v_collection_variances` | 发票 vs 收款差异 |
-| `v_cost_margin_analysis` | 成本毛利分析（需已批准映射 + 标准成本） |
-| `v_pending_exceptions` | 待处理异常：未批准变更/映射/扣款 + 未核销差异 |
+| `v_cost_margin_analysis` | ~~成本毛利分析~~ 视图已移除（改用 Master Budget API + unit_cost） |
+| `v_pending_exceptions` | 待处理异常（变更/扣款/差异；映射类型已移除） |
 
 ### 报表 API
 

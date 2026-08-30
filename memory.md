@@ -2,18 +2,18 @@
 
 > **用途**：持久化项目上下文和决策记录，避免每次会话从原始代码重新探索。
 > **更新规则**：每次做出新的决策或完成变更后，必须同步更新此文档。
-> **最后更新**：2026-08-03 — Phase B 完成
+> **最后更新**：2026-08-31 — Revision 1 完成
 
 ---
 
 ## 1. 项目身份
 
-- **名称**：Maggie — 工程合同及请款管理系统 (Engineering Contract & Payment Application Management System)
+- **名称**：Maggie — 工程计价单及请款管理系统 (Engineering Pricing Sheet & Payment Application Management System)
 - **仓库**：https://github.com/PMPai/maggie
-- **分支**：`phase-b-frontend-pages`（Phase A 完成于 `phase-a-celery-pdf-ocr`，已并入）
-- **定位**：面向工程建设企业（财务、项目经理、造价、审核人员）的多项目、多角色计价请款平台
-- **核心能力**：合同版本管理 → 请款计算 → 审批过账 → 发票收款 → 文档生成完整闭环
-- **规格文档**：`Prompt.md`（1775 行，完整需求规格）
+- **分支**：`phase1-core-loop`
+- **定位**：面向工程建设企业的单一本地用户计价请款平台
+- **核心能力**：计价单 → 合同 → 请款计算 → 审批过账 → 收款/发票 → Master Budget → MCP AI Agent 完整闭环
+- **Revision 1 变更**：移除 LLM 匹配 + RBAC 权限 → 单一本地用户；新增计价单流程 + 收款/发票状态流 + MCP Server
 
 ---
 

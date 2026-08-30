@@ -11,15 +11,18 @@ Engineering Pricing Sheet & Payment Application Management System — a single-u
 本系统面向工程建设企业的财务、项目经理、造价及审核人员，提供从合同录入、项目映射、请款计算、审批过账到发票收款的完整闭环管理。核心能力包括：
 
 - **合同版本管理**：支持多版本合同，版本不可覆盖，历史可追溯。
+- **计价单流程**：手动建立计价单 → 逐项编辑（名称/数量/单价/成本/付款时间）→ 审核通过转为合同（SIGNED_CONTRACT），自动生成 PLANNED 收款单。
 - **变更单台账**：合同变更（数量/金额调整）独立管理，需审批后才纳入可请款量。
 - **请款计算引擎**：纯函数计算，支持数量制、总价制、里程碑制、百分比制，自动处理保留款、扣款、税额及舍入。
 - **保留款完整台账**：HOLD/RELEASE/ADJUSTMENT/REVERSAL 分类账，余额 = SUM(entries)，无可变余额列。
 - **扣款台账**：多类型扣款（预付款抵扣、材料扣款、质量罚款等）+ 税务处理。
-- **发票与收款**：发票登记、收款分配、差异核销（不自动调整）。
-- **标准项目匹配**：别名 + 规则 + 全文检索 + 向量（pgvector）+ 可选 LLM 语义建议。
-- **审批工作流**：可配置多级审批（项目负责人 → 财务复核），过账幂等且不可逆。
+- **收款单流程**：PLANNED → CONFIRMED → RECEIVED，依付款时间自动排程，每周应收款计划。
+- **发票计划**：PLANNED → ISSUED → SENT → PAID，收款确认后预排发票。
+- **Master Budget**：逐项手动成本（unit_cost）+ 毛利 + 收款追踪（已请款/已开票/已收款/未收余额/逾期）。
+- **审批工作流**：可配置多级审批，过账幂等且不可逆。
 - **文档生成**：Playwright 生成 A4 可打印 PDF，openpyxl 生成 Excel，数据与数据库一致。
-- **项目级权限隔离**：用户仅能访问所属项目数据，URL 切换无法绕过。
+- **MCP Server**：AI Agent 可通过 MCP 协议（stdio/SSE）CRUD 所有业务记录。
+- **单一本地用户**：无认证/权限，直接使用。
 
 ---
 
@@ -27,12 +30,12 @@ Engineering Pricing Sheet & Payment Application Management System — a single-u
 
 | 层 | 技术 | 说明 |
 |---|---|---|
-| 前端 | Next.js 14 (React + TypeScript), Tailwind CSS | SPA 式内部管理界面，Data-Dense Dashboard 设计风格，侧边栏导航 |
-| 后端 API | FastAPI (Python 3.12), SQLAlchemy 2.x, Pydantic v2 | RESTful API，RBAC 权限控制，HttpOnly cookie 认证 |
-| 数据库 | PostgreSQL 16 + pgvector | 业务数据 + 可选向量检索（LLM 匹配） |
+| 前端 | Next.js 14 (React + TypeScript), Tailwind CSS | SPA 管理界面，Design.md 风格（靛蓝/琥珀/松绿三色），侧边栏导航 |
+| 后端 API | FastAPI (Python 3.12), SQLAlchemy 2.x, Pydantic v2 | RESTful API + MCP Server，单一本地用户（无认证） |
+| 数据库 | PostgreSQL 16 | 业务数据 |
 | 缓存/消息 | Redis 7 | Celery broker + result backend |
-| 异步任务 | Celery | PDF/Excel 生成、OCR 与 LLM 匹配 |
-| 部署 | Docker Compose | 5 个服务（postgres、redis、api、worker、frontend），一键启动 |
+| 异步任务 | Celery | PDF/Excel 生成、OCR |
+| 部署 | Docker Compose | 5 个服务（postgres、redis、api、worker、frontend），端口 8081 |
 
 详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -148,17 +151,22 @@ Alembic 管理 schema 迁移，共 16 个版本（Phase 1 + Phase 2 + Phase 3）
 | 004 | 文档模型：storage_roots, documents, document_links | Phase 1 |
 | 005 | 请款模型：payment_applications, lines, retention_entries, milestone_events | Phase 1 |
 | 006 | 审批模型：approval_workflows, approval_steps, approvals, audit_logs | Phase 1 |
-| 007 | 标准项目：standard_items, standard_item_aliases, standard_cost_versions | Phase 2 |
+| 007 | ~~标准项目~~ 已在 Rev.1 移除（迁移 021 删除） | ~~Phase 2~~ |
 | 008 | 变更单：variations, variation_lines | Phase 2 |
 | 009 | 扣款：deductions | Phase 2 |
 | 010 | 发票：invoices, invoice_application_links | Phase 2 |
 | 011 | 收款：collections, collection_allocations | Phase 2 |
 | 012 | 财务调整：financial_adjustments | Phase 2 |
-| 013 | 项目映射：item_mappings, mapping_components | Phase 2 |
-| 014 | 匹配审核：matching_reviews | Phase 2 |
+| 013 | ~~项目映射~~ 已在 Rev.1 移除（迁移 021 删除） | ~~Phase 2~~ |
+| 014 | ~~匹配审核~~ 已在 Rev.1 移除（迁移 021 删除） | ~~Phase 2~~ |
 | 015 | DB 视图：8 个报表视图 (v_contract_item_balances 等) | Phase 3 |
 | 016 | 文档模板：document_templates, generated_documents | Phase 3 |
-| 020 | 群组授权：groups、group_roles、user_groups 与默认群组迁移 | 当前实现 |
+| 020 | ~~群组授权~~ 已在 Rev.1 移除（迁移 022 删除） | ~~当前实现~~ |
+| 021 | **Rev.1**：删除匹配表 (matching_reviews, item_mappings, standard_items 等) | Rev.1 |
+| 022 | **Rev.1**：删除权限表 (organizations, users, groups 等) + organization_id 列 | Rev.1 |
+| 023 | **Rev.1**：新增 contract_items.unit_cost 列 | Rev.1 |
+| 024 | **Rev.1**：更新 CollectionStatus (PLANNED/CONFIRMED/RECEIVED) + InvoiceStatus (PLANNED/ISSUED/SENT) | Rev.1 |
+| 025 | **Rev.1**：更新 v_invoice_outstanding 视图（移除 PARTIALLY_PAID） | Rev.1 |
 
 **运行迁移：**
 

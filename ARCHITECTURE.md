@@ -61,11 +61,11 @@ Docker Compose 开发环境将前端与 API 分别公开到主机端口：
 
 | 服务 | 镜像 | 角色 | 端口 |
 |---|---|---|---|
-| `frontend` | node:20-alpine (dev 模式) | Next.js dev server + `/api` 反向代理 → `api` | 3000 |
-| `api` | python:3.12-slim + FastAPI | REST API、认证、RBAC、业务逻辑 | 8000 |
-| `postgres` | pgvector/pgvector:pg16 | 业务数据 + 可选向量检索 | 5432 |
-| `redis` | redis:7-alpine | Celery broker + result backend（Phase 3 启用 worker） | 6379 |
-| `worker` | python:3.12-slim + Celery | PDF/Excel、OCR 与 LLM 匹配等异步任务 | — |
+| `frontend` | node:20-alpine (dev 模式) | Next.js dev server + `/api` + `/health` 反向代理 → `api` | 8081→3000 |
+| `api` | python:3.12-slim + FastAPI | REST API + MCP Server、业务逻辑（无认证） | 8000（内部，不对外） |
+| `postgres` | pgvector/pgvector:pg16 | 业务数据 | 5432 |
+| `redis` | redis:7-alpine | Celery broker + result backend | 6379 |
+| `worker` | python:3.12-slim + Celery | PDF/Excel、OCR 异步任务 | — |
 
 `worker` 与 `api` 共享后端映像、业务源码和 `archive` 数据卷；它使用 Redis 作为任务 broker 与结果后端。
 
@@ -232,19 +232,9 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 ### 收款服务 (`collection_service.py`)
 - `get_invoice_outstanding(invoice_id, db)` — 发票未清金额 = 含税金额 - 已分配收款。
 
-### 匹配管道 (`services/matching/`)
-- `normalize.py` — 文本标准化（全/半角、繁/简、空格、括号）。
-- `alias.py` — 精确别名查找（自动匹配）。
-- `rule.py` — 关键词规则匹配。
-- `fulltext.py` — PostgreSQL ILIKE 全文检索。
-- `vector.py` — pgvector 向量检索（可选）。
-- `pipeline.py` — 管道编排：标准化 → 别名 → 规则 → 全文 → 向量 → LLM（可选）。
+### 匹配管道 + LLM 客户端 — **已移除**
 
-### LLM 客户端 (`services/llm/`)
-- `protocol.py` — `LLMClient` Protocol + `LLMResult`/`LLMCandidate` 数据类。
-- `stub.py` — `StubClient`（LLM_ENABLED=false 时使用，返回 None）。
-- `openai_impl.py` — `OpenAIClient`（OpenAI 兼容 API，JSON schema 验证）。
-- `get_llm_client(settings)` — 工厂函数，按配置返回 Stub 或 OpenAI 客户端。
+标准项目匹配管道 (`services/matching/`) 与 LLM 客户端 (`services/llm/`) 已在 Revision 1 中完全移除。Master Budget 改用 `contract_items.unit_cost` 手动成本计算毛利。
 
 ---
 
@@ -282,11 +272,9 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 | 保留款余额非负 | 每个合同的 retention balance 不应为负 |
 | 无重复发票号 | 同一合同内 invoice_no 唯一 |
 
-### 速率限制中间件 (`app/security/rate_limit.py`)
-- `RateLimitMiddleware` — 内存滑动窗口限流。
-- 登录：5 次失败/分钟/IP（超限返回 429）。
-- API：100 次请求/分钟/IP。
-- 注册于 `app/main.py`，在 `SecurityHeadersMiddleware` 之后。
+### 速率限制 — **已移除**
+
+速率限制中间件 (`RateLimitMiddleware`) 已在 Revision 1 中随认证系统一并移除。单一本地用户，无限流。
 
 ### 文档模板管理 (`app/models/template.py`)
 - `DocumentTemplate` — 客户级模板（BILLING/INVOICE），含生效日期、版本。
@@ -295,42 +283,42 @@ DRAFT → SUBMITTED → PROJECT_APPROVED → FINANCE_APPROVED → POSTED
 
 ---
 
-## 群组化授权与用户管理（当前实现）
+## 群组化授权与用户管理 — **已移除**
 
-### 权限解析
+认证、RBAC、群组、角色、组织隔离、项目成员检查已在 Revision 1 中完全移除。系统现为单一本地用户模式：
+- `backend/app/deps.py` 定义 `SINGLE_USER_ID`，`get_current_user()` 直接返回固定用户
+- 无登录页面、无 cookie/token、无限流
+- `require_role`/`require_category`/`require_admin`/`require_project_member` 均为 no-op stub
+- 所有业务表已移除 `organization_id` 列
 
-授权仍以既有的细粒度角色为判断依据，但角色不再必须直接绑定在用户上。认证请求会从**有效群组成员关系**解析用户拥有的全部角色：
+## MCP Server (Revision 1 新增)
 
-```text
-User ──< user_groups >── Group ──< group_roles >── Role
-```
+MCP Server 位于 `backend/app/mcp/`，供 AI Agent 通过 MCP 协议（stdio/SSE）进行 CRUD 操作：
 
-- 只有 `ACTIVE` 群组的角色会参与授权；组织边界由群组与成员记录上的 `organization_id` 约束。
-- 若用户没有任何有效群组角色，后端才回退读取历史 `user_roles`，以兼容已有帐号。
-- 角色会归类为 `ADMIN`、`FINANCE`、`LEADER`、`AUDITOR` 或 `VIEWER`；任一管理员类别角色可绕过项目成员检查。
-- `require_role`、`require_category`、`require_admin` 与项目成员检查均在 FastAPI 服务层执行，前端菜单过滤不构成安全边界。
+| 工具 | 操作 |
+|---|---|
+| `project` | create, list, get |
+| `pricing_sheet` | create, list, add_item, update_item, delete_item, approve |
+| `collection` | create, list, confirm, receive |
+| `invoice` | create, list, issue, send |
+| `master_budget` | get |
 
-### 数据与管理 API
-
-迁移 `020_groups` 新增 `groups`、`group_roles`、`user_groups`。迁移会为每个有效组织建立默认群组，并将既有用户的直接角色映射为相应的群组成员关系。
-
-- `/api/groups`：仅管理员可管理群组、群组角色及成员；默认群组不可删除或停用，且管理员不能将自己移出最后一个有效管理员群组。
-- `/api/users`：仅管理员可新建、编辑、停用用户、替换其群组成员关系及重设密码。
-- `/api/auth/roles`：登入用户可读取角色清单，供管理界面配置群组角色使用。
+MCP Server 直接调用后端服务层，与 REST API 共享业务逻辑，无重复代码。
 
 ## 前端架构
 
 ### 设计系统 (Design System)
 
-采用 **Data-Dense Dashboard** 设计风格（由 ui-ux-pro-max 技能推荐）：
+遵循 `Design.md` 规范 — 专业业务系统风格：
 
 | 元素 | 设计 |
 |---|---|
-| 主色 | Slate-500 (#64748B) — 专业、工业风 |
-| 强调色 | Orange-500 (#F97316) — CTA、活跃状态 |
-| 背景 | Slate-50 (#F8FAFC) |
-| 字体 | Inter (英文) + Noto Sans SC (中文) + Fira Code (数字/代码) |
-| 效果 | 行悬停高亮、平滑过渡 (150-300ms)、加载旋转器、悬停提示 |
+| 主色（靛蓝） | `#355C9A` — 主按钮、当前导航、合同/计划 |
+| 注意色（琥珀） | `#C88719` — 待处理、预警、预算 |
+| 完成色（松绿） | `#2F7D68` — 已完成、已收款、正向状态 |
+| 背景 | `#F7F6F2`（微暖灰） |
+| 内容面 | `#FFFFFF` |
+| 字体 | Noto Sans SC + Inter, `tabular-nums` 金额右对齐 |
 
 ### 共享组件 (`frontend/components/`)
 
@@ -369,41 +357,37 @@ User ──< user_groups >── Group ──< group_roles >── Role
 
 - **框架**：Next.js 14 App Router，`npm run dev` 模式运行于 Docker。
 - **路由**：
-  - `/`（登录 — 居中卡片 + 橙色 Logo）
-  - `/dashboard`（驾驶舱 — 13 可点击指标卡 + 富项目表 + 最近审计，Phase B）
-  - `/inbox`（文件收件箱 — 上传 + OCR 轮询 + 预览/下载，Phase B）
-  - `/approvals`（审批与异常中心 — 统一列表 + 行内批准/拒绝，Phase B）
-  - `/my-applications`（我的请款 — 按创建者显示个人请款清单）
-  - `/admin/users`、`/admin/groups`（仅管理员可见的用户与群组管理）
-  - `/projects/[id]`（项目详情，11 个标签页：概况、合同、请款、文件、变更、保留款、扣款、发票收款、标准项目、映射、Master Budget）
-  - `/projects/[id]/budget`（Master Budget — 15 列树表 + 毛利 + 异常状态，Phase B）
-  - `/contracts/[id]/extract`（合同抽取审核 — 左右并排 + 可编辑表单/项目行，Phase B）
-  - `/applications/new`（请款向导 — 4 步可视化指示器 + 实时 8 栏位合计预览）
-  - `/applications/[id]`（请款详情 — 12 栏位明细表 + 8 栏位合计面板 + 审批工作流按钮）
-  - `/projects/[id]/variations`（变更台账）
-  - `/projects/[id]/retention`（保留款台账 — HOLD/RELEASE/REVERSAL + 余额 StatCard）
-  - `/projects/[id]/deductions`（扣款台账）
-  - `/projects/[id]/invoices`（发票与收款 — 双卡片并排 + 差异栏位）
-  - `/projects/[id]/catalog`（标准项目目录）
-  - `/projects/[id]/mapping`（映射审批）
-  - `/reports`（报表中心 — 8 种 DB 视图报表 + 3 规划中，侧边栏选择 + 增强渲染 + 分页，Phase B）
-  - `/audit`（审计日志 — 追加只读，最近 100 条操作记录）
-- **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` 转发至 `http://api:8000/api/*`（Docker 内部网络）。对外端口为 8081。
-- **认证**：cookie-based，`credentials: 'include'` 自动携带。
+  - `/`（重定向至 /dashboard）
+  - `/dashboard`（驾驶舱 — 4 指标卡 + 资金进度漏斗 + 现金流趋势 + 项目经营表 + 待办风险）
+  - `/inbox`（文件收件箱 — 上传 + OCR + 预览/下载）
+  - `/approvals`（审批与异常中心 — 统一列表 + 行内批准/拒绝）
+  - `/my-applications`（我的请款）
+  - `/finance/weekly-plan`（每周应收款计划 — 按 ISO 周分组）
+  - `/projects`（项目列表 + 创建）
+  - `/projects/[id]`（项目详情 — 概况、合同、请款、收款单、文件、变更、保留款、扣款、发票收款、Master Budget、审计）
+  - `/projects/[id]/setup`（计价单编辑器 — 3 步：新建计价单 → 逐项编辑 → 审核通过）
+  - `/projects/[id]/budget`（Master Budget — 单位成本 + 毛利 + 收款追踪）
+  - `/projects/[id]/collections`（收款单 — PLANNED→CONFIRMED→RECEIVED）
+  - `/projects/[id]/invoices`（发票 — PLANNED→ISSUED→SENT + 差异）
+  - `/applications/new`（请款向导）
+  - `/applications/[id]`（请款详情）
+  - `/reports`（报表中心）
+  - `/audit`（审计日志）
+- **API 代理**：`next.config.mjs` 中 `rewrites` 将 `/api/*` + `/health` 转发至 `http://api:8000`（Docker 内部网络）。对外端口为 8081。
+- **认证**：无。单一本地用户，直接加载 dashboard。
 - **原则**：前端不做任何业务计算，所有计算结果来自 API。
 
 ---
 
-## 异步任务 (Celery Worker — Phase A 已启用)
+## 异步任务 (Celery Worker)
 
 | 任务 | 触发 | 说明 |
 |---|---|---|
 | PDF 生成 | 请款过账后 | Playwright Chromium 渲染 A4 PDF |
 | Excel 生成 | 请款过账后 | openpyxl 生成 .xlsx |
-| OCR 提取 | 文件上传后 | Tesseract 提取文本，持久化到 `documents.ocr_text`（Phase B 增加持久化） |
-| LLM 匹配 | 手动触发 | 标准项目语义匹配建议 |
+| OCR 提取 | 文件上传后 | Tesseract 提取文本，持久化到 `documents.ocr_text` |
 
-Worker 服务已在 `docker-compose.yml` 中启用（Phase A）。`backend/app/tasks/celery_app.py` + `tasks.py` 实现 3 个异步任务。OCR 提取完成后将文本写入 `documents.ocr_text` 列（迁移 017，Phase B）。
+Worker 服务在 `docker-compose.yml` 中启用。`backend/app/tasks/celery_app.py` + `tasks.py` 实现 2 个异步任务（LLM 匹配任务已移除）。
 
 > **Playwright 注意**：`backend/Dockerfile` 手动安装 18 个 host 库 + `fonts-noto-cjk` 中文字体（Debian 12 `ttf-unifont` 不再可用）。PDF 生成集成测试通过 Docker 内 Playwright 运行。
 
