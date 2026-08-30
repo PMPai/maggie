@@ -105,6 +105,7 @@ class ContractItem(Base, TimestampMixin, OrganizationMixin, AuditMixin):
     unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     contract_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0"))
+    unit_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     line_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0"))
     calculation_method: Mapped[str] = mapped_column(Enum(CalculationMethod), nullable=False, default=CalculationMethod.QUANTITY)
     tax_category: Mapped[str] = mapped_column(String(32), nullable=False, default="STANDARD")

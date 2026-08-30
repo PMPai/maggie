@@ -15,7 +15,6 @@ from app.models.billing import (
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.collection import Collection, CollectionStatus
 from app.models.variation import Variation, VariationStatus
-from app.models.mapping import ItemMapping, MappingStatus
 from app.models.approval import AuditLog
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -155,12 +154,7 @@ async def get_summary(
             ),
         )
     )).scalar_one()
-    pending_map = (await db.execute(
-        select(func.count()).select_from(ItemMapping).where(
-            ItemMapping.project_id.in_(project_ids),
-            ItemMapping.status == MappingStatus.PENDING_REVIEW,
-        )
-    )).scalar_one()
+    pending_map = 0
 
     # Overclaim: payment_application_lines where cumulative > contract_quantity
     overclaim = (await db.execute(

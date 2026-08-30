@@ -177,35 +177,6 @@ export interface FinancialAdjustment {
   status: string;
 }
 
-export interface StandardItem {
-  id: string;
-  code: string;
-  name: string;
-  category: string;
-  unit: string;
-  description: string;
-  is_active: boolean;
-  latest_unit_cost?: string | number | null;
-}
-
-export interface ItemMapping {
-  id: string;
-  contract_item_id: string;
-  standard_item_id: string;
-  mapping_type: string;
-  match_method: string;
-  status: string;
-  confidence: number;
-}
-
-export interface MatchingReview {
-  id: string;
-  contract_item_id: string;
-  review_type: string;
-  status: string;
-  decision: string;
-}
-
 export interface ApplicationTotals {
   gross_completed_amount: number;
   retention_held_amount: number;

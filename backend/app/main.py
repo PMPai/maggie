@@ -11,15 +11,12 @@ from app.api.contracts import router as contracts_router
 from app.api.documents import router as documents_router
 from app.api.payment_applications import router as payment_router
 from app.api.approvals import router as approvals_router
-from app.api.standard_items import router as standard_items_router
 from app.api.variations import router as variations_router
 from app.api.deductions import router as deductions_router
 from app.api.retention_entries import router as retention_entries_router
 from app.api.invoices import router as invoices_router
 from app.api.collections import router as collections_router
 from app.api.financial_adjustments import router as financial_adjustments_router
-from app.api.item_mappings import router as item_mappings_router
-from app.api.matching_reviews import router as matching_reviews_router
 from app.api.reports import router as reports_router
 from app.api.tasks import router as tasks_router
 from app.api.dashboard import router as dashboard_router
@@ -96,15 +93,12 @@ def create_app() -> FastAPI:
     app.include_router(documents_router)
     app.include_router(payment_router)
     app.include_router(approvals_router)
-    app.include_router(standard_items_router)
     app.include_router(variations_router)
     app.include_router(deductions_router)
     app.include_router(retention_entries_router)
     app.include_router(invoices_router)
     app.include_router(collections_router)
     app.include_router(financial_adjustments_router)
-    app.include_router(item_mappings_router)
-    app.include_router(matching_reviews_router)
     app.include_router(reports_router)
     app.include_router(tasks_router)
     app.include_router(dashboard_router)

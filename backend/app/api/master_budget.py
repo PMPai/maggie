@@ -1,5 +1,6 @@
 """GET /api/projects/{project_id}/master-budget - tree rows with cost/margin/exception_status."""
 import uuid
+from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -16,8 +17,6 @@ from app.models.billing import (
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.collection import Collection, CollectionStatus
 from app.models.variation import VariationLine
-from app.models.mapping import ItemMapping, MappingStatus
-from app.models.standard import StandardCostVersion
 
 router = APIRouter(prefix="/api/projects", tags=["master-budget"])
 
@@ -159,31 +158,6 @@ async def get_master_budget(
     )).scalars().all():
         coll_total += c.amount_received or Decimal("0")
 
-    # Mappings per contract_item
-    mapped_item_ids = set()
-    mapping_by_item = {}
-    if item_ids:
-        for m in (await db.execute(
-            select(ItemMapping).where(
-                ItemMapping.contract_item_id.in_(item_ids),
-                ItemMapping.status == MappingStatus.APPROVED,
-            )
-        )).scalars().all():
-            mapped_item_ids.add(m.contract_item_id)
-            mapping_by_item[m.contract_item_id] = m
-
-    # Standard cost per mapped standard_item (latest effective version)
-    std_item_ids = [m.standard_item_id for m in mapping_by_item.values()]
-    cost_by_std: dict[uuid.UUID, Decimal] = {}
-    if std_item_ids:
-        for scv in (await db.execute(
-            select(StandardCostVersion)
-            .where(StandardCostVersion.standard_item_id.in_(std_item_ids))
-            .order_by(StandardCostVersion.effective_from.desc())
-        )).scalars().all():
-            if scv.standard_item_id not in cost_by_std:
-                cost_by_std[scv.standard_item_id] = scv.unit_cost or Decimal("0")
-
     rows = []
     for item in items:
         var_delta = var_delta_by_item.get(item.id, Decimal("0"))
@@ -202,25 +176,26 @@ async def get_master_budget(
             Decimal("0"),
         )
 
-        std_cost_per_unit = None
-        std_cost_total = None
-        margin = None
-        margin_pct = None
-        price_variance = None
-        if item.id in mapping_by_item:
-            m = mapping_by_item[item.id]
-            std_cost_per_unit = cost_by_std.get(m.standard_item_id)
-            if std_cost_per_unit is not None:
-                std_cost_total = std_cost_per_unit * cum_qty
-                margin = completed_amount - std_cost_total
-                if completed_amount > 0:
-                    margin_pct = (margin / completed_amount) * Decimal("100")
-                price_variance = (item.unit_price or Decimal("0")) - std_cost_per_unit
+        if item.unit_cost is not None:
+            unit_cost_val = float(item.unit_cost)
+            line_amount_val = float(item.line_amount or 0)
+            margin = (float(item.unit_price or 0) - unit_cost_val) * float(item.contract_quantity or 0)
+            margin_pct = (margin / line_amount_val * 100) if line_amount_val else 0
+            std_cost_per_unit = item.unit_cost
+            std_cost_total = item.unit_cost * (item.contract_quantity or Decimal("0"))
+            price_variance = (item.unit_price or Decimal("0")) - item.unit_cost
+        else:
+            margin = None
+            margin_pct = None
+            std_cost_per_unit = None
+            std_cost_total = None
+            price_variance = None
 
+        today = date.today()
         if remaining < 0:
             exception = "overclaim"
-        elif item.id not in mapped_item_ids and not item.is_heading:
-            exception = "unmapped"
+        elif item.expected_payment_date and item.expected_payment_date < today:
+            exception = "overdue"
         else:
             exception = "none"
 

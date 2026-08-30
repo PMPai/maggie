@@ -1,4 +1,4 @@
-"""Celery task definitions — async operations for PDF generation, OCR, and LLM matching."""
+"""Celery task definitions — async operations for PDF generation and OCR."""
 import logging
 import uuid
 from app.tasks.celery_app import celery_app
@@ -169,35 +169,4 @@ def run_ocr(self, document_id: str) -> dict:
     return asyncio.run(_run())
 
 
-@celery_app.task(bind=True, name="tasks.run_llm_match", autoretry_for=(Exception,), retry_kwargs={"max_retries": 2})
-def run_llm_match(self, contract_item_id: str, candidate_ids: list) -> dict:
-    """Run LLM ranking on matching candidates, store result in matching_reviews."""
-    import asyncio
-    from app.config import get_settings
 
-    settings = get_settings()
-
-    if not settings.LLM_ENABLED or not settings.LLM_API_KEY:
-        return {"error": "LLM not enabled", "llm_status": "SKIPPED"}
-
-    async def _run():
-        from sqlalchemy import select
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-        from app.services.llm.openai_impl import get_llm_client
-
-        engine = create_async_engine(settings.DATABASE_URL)
-        try:
-            factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-            async with factory() as db:
-                llm_client = get_llm_client(settings)
-
-                item_id = uuid.UUID(contract_item_id)
-                return {
-                    "contract_item_id": contract_item_id,
-                    "llm_status": "COMPLETED",
-                    "candidate_count": len(candidate_ids),
-                }
-        finally:
-            await engine.dispose()
-
-    return asyncio.run(_run())

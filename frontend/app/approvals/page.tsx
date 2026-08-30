@@ -18,8 +18,6 @@ const TYPE_LABELS: Record<string, string> = {
   payment_application_pm: '请款(项目)',
   payment_application_finance: '请款(财务)',
   deduction: '扣款',
-  item_mapping: '项目映射',
-  matching_review: '匹配审核',
   collection_variance: '收款差异',
   overclaim: '超量异常',
 };

@@ -9,7 +9,7 @@ import { PageHeader, Card, CardHeader, StatusBadge, EmptyState, formatMoney } fr
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
-type Tab = 'overview' | 'contracts' | 'applications' | 'files' | 'variations' | 'retention' | 'deductions' | 'invoices' | 'catalog' | 'mapping' | 'budget' | 'audit';
+type Tab = 'overview' | 'contracts' | 'applications' | 'files' | 'variations' | 'retention' | 'deductions' | 'invoices' | 'budget' | 'audit';
 
 const TAB_LABELS: Record<Tab, string> = {
   overview: '概况',
@@ -20,13 +20,11 @@ const TAB_LABELS: Record<Tab, string> = {
   retention: '保留款',
   deductions: '扣款',
   invoices: '发票收款',
-  catalog: '标准项目',
-  mapping: '映射',
   budget: 'Master Budget',
   audit: '审计记录',
 };
 
-const LEDGER_TABS: Tab[] = ['variations', 'retention', 'deductions', 'invoices', 'catalog', 'mapping', 'budget', 'files', 'audit'];
+const LEDGER_TABS: Tab[] = ['variations', 'retention', 'deductions', 'invoices', 'budget', 'files', 'audit'];
 
 export default function ProjectDetailPage() {
   const { user, loading } = useAuth();

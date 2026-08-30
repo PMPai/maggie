@@ -9,9 +9,7 @@ from app.models.identity import UserRoleEnum
 from app.models.project import Project, ProjectMember
 from app.models.contract import Contract, ContractVersion, ContractVersionStatus, ContractItem
 from app.models.variation import Variation, VariationStatus
-from app.models.mapping import ItemMapping, MappingStatus
 from app.models.billing import PaymentApplication, ApplicationStatus, PaymentApplicationLine
-from app.models.matching_review import MatchingReview
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
 
@@ -108,29 +106,6 @@ async def list_pending(
                               pa.invoice_amount, "FINANCE_REVIEWER",
                               f"/api/payment-applications/{pa.id}/approve", None,
                               f"/applications/{pa.id}", pa.created_at))
-
-    # Item mappings (PENDING_REVIEW) — ItemMapping carries project_id directly
-    for m in (await db.execute(
-        select(ItemMapping).where(
-            ItemMapping.project_id.in_(accessible),
-            ItemMapping.status == MappingStatus.PENDING_REVIEW,
-        )
-    )).scalars().all():
-        items.append(_row("item_mapping", m.id, m.project_id, "标准项目映射审核", None, "COST_REVIEWER",
-                          f"/api/item-mappings/{m.id}/approve", f"/api/item-mappings/{m.id}/reject",
-                          f"/projects/{m.project_id}/mapping", m.created_at))
-
-    # Matching reviews (PENDING) — MatchingReview carries project_id directly
-    for mr in (await db.execute(
-        select(MatchingReview).where(
-            MatchingReview.project_id.in_(accessible),
-            MatchingReview.status == "PENDING",
-        )
-    )).scalars().all():
-        label = "提前释放保留款" if getattr(mr, "review_type", "") == "RETENTION_RELEASE" else "匹配审核"
-        items.append(_row("matching_review", mr.id, mr.project_id, label, None, "COST_REVIEWER",
-                          f"/api/matching-reviews/{mr.id}/decide", None,
-                          f"/projects/{mr.project_id}/mapping", mr.created_at))
 
     # Overclaim: batch-resolve via single JOIN, project-scoped at SQL level (no per-row awaits)
     seen_items: set[uuid.UUID] = set()
