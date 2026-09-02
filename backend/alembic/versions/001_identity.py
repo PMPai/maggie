@@ -71,7 +71,7 @@ def upgrade():
     # Seed roles
     for role in _ROLE_NAMES:
         op.execute(
-            sa.text("INSERT INTO roles (id, name) VALUES (gen_random_uuid(), :name)").bindparams(name=role.value)
+            sa.text("INSERT INTO roles (id, name) VALUES (gen_random_uuid(), :name)").bindparams(name=role)
         )
 
 

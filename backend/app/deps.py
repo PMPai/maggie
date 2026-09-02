@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from app.db.session import get_db
 
-SINGLE_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+SINGLE_USER_ID = uuid.UUID("16d7d4dc-d79d-412a-a4ee-b8a1f09f8276")
 
 
 @dataclass

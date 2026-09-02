@@ -25,7 +25,7 @@ def upgrade():
         sa.Column("tax_amount", sa.Numeric(18, 2), nullable=False, server_default="0"),
         sa.Column("amount_inc_tax", sa.Numeric(18, 2), nullable=False, server_default="0"),
         sa.Column("tax_rate", sa.Numeric(10, 6), nullable=False, server_default="0.05"),
-        sa.Column("status", sa.Enum(InvoiceStatus), nullable=False, server_default="DRAFT"),
+        sa.Column("status", sa.Enum(InvoiceStatus), nullable=False, server_default="PLANNED"),
         sa.Column("source", sa.String(32), nullable=False, server_default="MANUAL"),
         sa.Column("notes", sa.Text),
         sa.Column("deleted_at", sa.DateTime(timezone=True)),

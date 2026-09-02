@@ -76,7 +76,7 @@ def upgrade():
                i.amount_inc_tax - COALESCE(SUM(ca.allocated_amount), 0) AS outstanding_amount
         FROM invoices i
         LEFT JOIN collection_allocations ca ON ca.invoice_id = i.id
-        WHERE i.status IN ('ISSUED', 'PARTIALLY_PAID')
+        WHERE i.status IN ('ISSUED', 'SENT')
         GROUP BY i.id, i.invoice_no, i.contract_id, i.amount_inc_tax
         """
     )
